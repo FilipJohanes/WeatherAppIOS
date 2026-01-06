@@ -5,7 +5,12 @@ struct SettingsView: View {
     
     var body: some View {
         NavigationView {
-            Form {
+            ZStack {
+                // Blue background
+                Color(red: 0.68, green: 0.85, blue: 0.90)
+                    .ignoresSafeArea()
+                
+                Form {
                 if let user = apiService.currentUser {
                     Section("Account") {
                         HStack {

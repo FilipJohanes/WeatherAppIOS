@@ -1,11 +1,11 @@
-# DailyBrief iOS App
+# Trident iOS App
 
 A SwiftUI-based iOS application that provides daily weather forecasts, countdowns to important events, and nameday information.
 
 ## 📁 Project Structure
 
 ```
-DailyBrief/
+Trident/
 ├── App/
 │   └── DailyBriefApp.swift          # App entry point
 │
@@ -59,7 +59,36 @@ DailyBrief/
 - **Xcode 13.0+**
 - **iOS 15.0+**
 - **Swift 5.5+**
-- Active DailyBrief API backend
+- Active Trident API backend
+
+### Quick Start
+
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for complete setup instructions.
+
+**Essential Steps:**
+1. Create Xcode project named "Trident"
+2. Add project files maintaining folder structure
+3. Configure API settings in `APIConfig.swift`
+4. Add branding assets (see [ASSET_SETUP_GUIDE.md](ASSET_SETUP_GUIDE.md))
+5. Enable Keychain Sharing capability
+6. Build and run
+
+## 📚 Documentation
+
+- **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Step-by-step setup instructions
+- **[ERROR_DOCUMENTATION.md](ERROR_DOCUMENTATION.md)** - Comprehensive error reference and troubleshooting
+- **[ASSET_SETUP_GUIDE.md](ASSET_SETUP_GUIDE.md)** - Branding and image setup guide
+- **[CHANGE_LOG.md](CHANGE_LOG.md)** - Recent changes and updates
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Detailed architecture documentation
+
+## 🚀 Detailed Setup (Quick Reference)
+
+### Prerequisites
+
+- **Xcode 13.0+**
+- **iOS 15.0+**
+- **Swift 5.5+**
+- Active Trident API backend
 
 ### Setup Instructions
 
@@ -67,13 +96,13 @@ DailyBrief/
    ```
    File → New → Project
    Choose: iOS → App
-   Product Name: DailyBrief
+   Product Name: Trident
    Interface: SwiftUI
    Language: Swift
    ```
 
 2. **Copy Project Files**
-   - Copy all files from the `DailyBrief/` folder into your Xcode project
+   - Copy all files from the `Trident/` folder into your Xcode project
    - Maintain the folder structure when adding files
 
 3. **Configure API**
@@ -81,15 +110,21 @@ DailyBrief/
    - Replace `your_api_key_here` with your actual API key
    - Update `baseURL` for production environment
 
-4. **Enable Required Capabilities**
+4. **Add Branding Assets**
+   - See [ASSET_SETUP_GUIDE.md](ASSET_SETUP_GUIDE.md) for detailed instructions
+   - Add app icon (1024x1024 PNG)
+   - Add launch images (3 sizes)
+   - Add logo images (3 sizes)
+
+5. **Enable Required Capabilities**
    - Select your project in Xcode
    - Go to "Signing & Capabilities"
    - Add "Keychain Sharing" capability
 
-5. **Set Minimum iOS Version**
+6. **Set Minimum iOS Version**
    - In project settings, set Deployment Target to iOS 15.0+
 
-6. **Build and Run**
+7. **Build and Run**
    - Select a simulator or device
    - Press Cmd+R to build and run
 

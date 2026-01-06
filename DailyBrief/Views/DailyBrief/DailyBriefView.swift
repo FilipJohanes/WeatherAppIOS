@@ -5,8 +5,13 @@ struct DailyBriefView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
+            ZStack {
+                // Blue background
+                Color(red: 0.68, green: 0.85, blue: 0.90)
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 20) {
                     if viewModel.isLoading {
                         ProgressView("Loading your daily brief...")
                     } else if let error = viewModel.errorMessage {
@@ -37,7 +42,8 @@ struct DailyBriefView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Daily Brief")
+            }
+            .navigationTitle("Trident")
             .refreshable {
                 await viewModel.fetchDailyBrief()
             }

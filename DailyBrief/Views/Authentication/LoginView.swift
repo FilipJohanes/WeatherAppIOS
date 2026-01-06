@@ -10,54 +10,66 @@ struct LoginView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                Image(systemName: "sun.max.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(.orange)
+            ZStack {
+                // Blue background
+                Color(red: 0.68, green: 0.85, blue: 0.90)
+                    .ignoresSafeArea()
                 
-                Text("DailyBrief")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                
-                VStack(spacing: 15) {
-                    TextField("Email", text: $email)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .textContentType(.emailAddress)
-                        .autocapitalization(.none)
+                VStack(spacing: 20) {
+                    Spacer()
                     
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .textContentType(.password)
-                }
-                .padding(.horizontal)
+                    // Trident logo
+                    Image("TridentLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
+                    
+                    Text("Trident")
+                        .font(.system(size: 42, weight: .bold))
+                        .foregroundColor(Color(red: 0.33, green: 0.33, blue: 0.33))
+                    
+                    Spacer().frame(height: 40)
                 
-                if let error = errorMessage {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                }
-                
-                Button(action: login) {
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    } else {
-                        Text("Login")
-                            .fontWeight(.semibold)
+                    VStack(spacing: 15) {
+                        TextField("Email", text: $email)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .textContentType(.emailAddress)
+                            .autocapitalization(.none)
+                        
+                        SecureField("Password", text: $password)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .textContentType(.password)
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .disabled(isLoading || email.isEmpty || password.isEmpty)
+                    .padding(.horizontal)
                 
-                Spacer()
+                    if let error = errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                
+                    Button(action: login) {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        } else {
+                            Text("Login")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(red: 0.20, green: 0.40, blue: 0.60))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .disabled(isLoading || email.isEmpty || password.isEmpty)
+                    
+                    Spacer()
+                }
             }
-            .padding()
             .navigationTitle("")
         }
     }

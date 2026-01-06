@@ -5,7 +5,12 @@ struct WeatherView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
+            ZStack {
+                // Blue background
+                Color(red: 0.68, green: 0.85, blue: 0.90)
+                    .ignoresSafeArea()
+                
+                ScrollView {
                 if viewModel.isLoading {
                     ProgressView()
                 } else if let error = viewModel.errorMessage {

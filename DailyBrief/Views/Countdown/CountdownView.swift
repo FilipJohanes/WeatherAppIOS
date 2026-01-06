@@ -5,7 +5,12 @@ struct CountdownView: View {
     
     var body: some View {
         NavigationView {
-            Group {
+            ZStack {
+                // Blue background
+                Color(red: 0.68, green: 0.85, blue: 0.90)
+                    .ignoresSafeArea()
+                
+                Group {
                 if viewModel.isLoading {
                     ProgressView()
                 } else if let error = viewModel.errorMessage {
