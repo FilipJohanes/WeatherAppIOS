@@ -1,7 +1,17 @@
 import SwiftUI
 
 struct WeatherView: View {
-    @StateObject private var viewModel = WeatherViewModel()
+    @EnvironmentObject var weatherService: WeatherService
+    @EnvironmentObject var locationManager: LocationManager
+    
+    @StateObject private var viewModel: WeatherViewModel
+    
+    init() {
+        _viewModel = StateObject(wrappedValue: WeatherViewModel(
+            weatherService: WeatherService(),
+            locationManager: LocationManager()
+        ))
+    }
     
     var body: some View {
         NavigationView {
@@ -40,8 +50,16 @@ struct WeatherView: View {
                 await viewModel.fetchWeather()
             }
         }
-        .task {
-            await viewModel.fetchWeather()
+        .onAppear {
+            let newViewModel = WeatherViewModel(
+                weatherService: weatherService,
+                locationManager: locationManager
+            )
+            _viewModel.wrappedValue = newViewModel
+            
+            Task {
+                await viewModel.fetchWeather()
+            }
         }
     }
 }

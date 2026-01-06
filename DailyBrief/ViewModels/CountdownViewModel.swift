@@ -6,18 +6,51 @@ class CountdownViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let apiService = APIService.shared
+    private let countdownStore: CountdownStore
+    
+    init(countdownStore: CountdownStore) {
+        self.countdownStore = countdownStore
+        self.countdowns = countdownStore.countdowns
+        
+        // Observe changes from store
+        countdownStore.$countdowns
+            .assign(to: &$countdowns)
+    }
     
     func fetchCountdowns() async {
-        isLoading = true
-        errorMessage = nil
-        
+        // Data is already loaded from local storage
+        countdowns = countdownStore.countdowns
+    }
+    
+    func add(_ countdown: Countdown) {
         do {
-            countdowns = try await apiService.getCountdowns()
+            try countdownStore.add(countdown)
+            errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
         }
-        
-        isLoading = false
+    }
+    
+    func update(_ countdown: Countdown) {
+        countdownStore.update(countdown)
+        errorMessage = nil
+    }
+    
+    func delete(_ countdown: Countdown) {
+        countdownStore.delete(countdown)
+        errorMessage = nil
+    }
+    
+    func delete(at offsets: IndexSet) {
+        countdownStore.delete(at: offsets)
+        errorMessage = nil
+    }
+    
+    var canAddMore: Bool {
+        return countdownStore.canAddMore
+    }
+    
+    var remainingSlots: Int {
+        return countdownStore.remainingSlots
     }
 }

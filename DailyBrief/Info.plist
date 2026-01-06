@@ -66,5 +66,9 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Trident needs your location to provide accurate weather information for your area.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Trident needs your location to provide accurate weather information.</string>
 </dict>
 </plist>

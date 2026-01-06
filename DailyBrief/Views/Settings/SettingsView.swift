@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var apiService: APIService
-    
     var body: some View {
         NavigationView {
             ZStack {
@@ -11,36 +9,58 @@ struct SettingsView: View {
                     .ignoresSafeArea()
                 
                 Form {
-                if let user = apiService.currentUser {
-                    Section("Account") {
+                    Section("App Information") {
                         HStack {
-                            Text("Email")
+                            Text("Version")
                             Spacer()
-                            Text(user.email)
+                            Text("1.0.0")
                                 .foregroundColor(.secondary)
                         }
                         
                         HStack {
-                            Text("Username")
+                            Text("Stage")
                             Spacer()
-                            Text(user.username)
+                            Text("MVP (Stage 1)")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Section("Features") {
+                        HStack {
+                            Text("Countdown Limit")
+                            Spacer()
+                            Text("20 events")
                                 .foregroundColor(.secondary)
                         }
                         
                         HStack {
-                            Text("Timezone")
+                            Text("Weather Cache")
                             Spacer()
-                            Text(user.timezone)
+                            Text("30 minutes")
                                 .foregroundColor(.secondary)
                         }
                     }
-                }
-                
-                Section {
-                    Button("Logout", role: .destructive) {
-                        apiService.logout()
+                    
+                    Section("About") {
+                        Link("Weather data by Open-Meteo", 
+                             destination: URL(string: "https://open-meteo.com")!)
+                        
+                        HStack {
+                            Text("Architecture")
+                            Spacer()
+                            Text("Serverless")
+                                .foregroundColor(.green)
+                        }
+                        
+                        HStack {
+                            Text("API Key Required")
+                            Spacer()
+                            Text("No ✓")
+                                .foregroundColor(.green)
+                        }
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Settings")
         }

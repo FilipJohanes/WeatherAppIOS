@@ -1,7 +1,16 @@
 import SwiftUI
 
 struct CountdownView: View {
-    @StateObject private var viewModel = CountdownViewModel()
+    @EnvironmentObject var countdownStore: CountdownStore
+    
+    @StateObject private var viewModel: CountdownViewModel
+    @State private var showingAddCountdown = false
+    
+    init() {
+        _viewModel = StateObject(wrappedValue: CountdownViewModel(
+            countdownStore: CountdownStore()
+        ))
+    }
     
     var body: some View {
         NavigationView {
@@ -25,21 +34,122 @@ struct CountdownView: View {
                         Text("No events yet")
                             .font(.headline)
                             .foregroundColor(.secondary)
+                        
+                        Button(action: { showingAddCountdown = true }) {
+                            Text("Add Your First Event")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color(red: 0.20, green: 0.40, blue: 0.60))
+                                .cornerRadius(10)
+                        }
                     }
                 } else {
-                    List(viewModel.countdowns) { countdown in
-                        CountdownRow(countdown: countdown)
+                    List {
+                        ForEach(viewModel.countdowns) { countdown in
+                            CountdownRow(countdown: countdown)
+                        }
+                        .onDelete(perform: viewModel.delete)
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Events (\(viewModel.countdowns.count)/20)")
+            .toolbar {
+                if viewModel.canAddMore {
+                    Button(action: { showingAddCountdown = true }) {
+                        Image(systemName: "plus")
                     }
                 }
             }
-            .navigationTitle("Events")
+            .sheet(isPresented: $showingAddCountdown) {
+                AddCountdownView(viewModel: viewModel)
+            }
             .refreshable {
                 await viewModel.fetchCountdowns()
             }
         }
-        .task {
-            await viewModel.fetchCountdowns()
+        .onAppear {
+            let newViewModel = CountdownViewModel(countdownStore: countdownStore)
+            _viewModel.wrappedValue = newViewModel
+            
+            Task {
+                await viewModel.fetchCountdowns()
+            }
         }
+    }
+}
+
+struct AddCountdownView: View {
+    @Environment(\.dismiss) var dismiss
+    @ObservedObject var viewModel: CountdownViewModel
+    
+    @State private var name = ""
+    @State private var date = Date()
+    @State private var yearly = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Event Details") {
+                    TextField("Event Name", text: $name)
+                    DatePicker("Date", selection: $date, displayedComponents: .date)
+                    Toggle("Yearly", isOn: $yearly)
+                }
+                
+                if let error = viewModel.errorMessage {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
+                }
+            }
+            .navigationTitle("New Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        addCountdown()
+                    }
+                    .disabled(name.isEmpty)
+                }
+            }
+        }
+    }
+    
+    private func addCountdown() {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        let countdown = Countdown(
+            id: UUID().uuidString,
+            name: name,
+            date: dateFormatter.string(from: date),
+            yearly: yearly,
+            daysLeft: calculateDaysLeft(),
+            isPast: date < Date()
+        )
+        
+        viewModel.add(countdown)
+        
+        if viewModel.errorMessage == nil {
+            dismiss()
+        }
+    }
+    
+    private func calculateDaysLeft() -> Int {
+        let calendar = Calendar.current
+        let now = calendar.startOfDay(for: Date())
+        let eventDate = calendar.startOfDay(for: date)
+        let components = calendar.dateComponents([.day], from: now, to: eventDate)
+        return components.day ?? 0
     }
 }
 

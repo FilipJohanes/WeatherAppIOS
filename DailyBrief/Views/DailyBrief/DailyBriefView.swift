@@ -1,7 +1,20 @@
 import SwiftUI
 
 struct DailyBriefView: View {
-    @StateObject private var viewModel = DailyBriefViewModel()
+    @EnvironmentObject var weatherService: WeatherService
+    @EnvironmentObject var countdownStore: CountdownStore
+    @EnvironmentObject var locationManager: LocationManager
+    
+    @StateObject private var viewModel: DailyBriefViewModel
+    
+    init() {
+        // Will be initialized with environment objects
+        _viewModel = StateObject(wrappedValue: DailyBriefViewModel(
+            weatherService: WeatherService(),
+            countdownStore: CountdownStore(),
+            locationManager: LocationManager()
+        ))
+    }
     
     var body: some View {
         NavigationView {
@@ -12,44 +25,59 @@ struct DailyBriefView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                    if viewModel.isLoading {
-                        ProgressView("Loading your daily brief...")
-                    } else if let error = viewModel.errorMessage {
-                        ErrorView(message: error) {
-                            Task {
-                                await viewModel.fetchDailyBrief()
+                        if viewModel.isLoading {
+                            ProgressView("Loading...")
+                        } else if let error = viewModel.errorMessage {
+                            ErrorView(message: error) {
+                                Task {
+                                    await viewModel.fetchDailyBrief()
+                                }
+                            }
+                        } else {
+                            // Weather
+                            if let weather = viewModel.weather {
+                                WeatherCard(weather: weather)
+                            }
+                            
+                            // Countdowns
+                            if !viewModel.countdowns.isEmpty {
+                                CountdownsCard(countdowns: viewModel.countdowns)
+                            } else {
+                                VStack(spacing: 10) {
+                                    Image(systemName: "calendar.badge.plus")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.secondary)
+                                    Text("No countdowns yet")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                    Text("Go to Events tab to add one")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
                             }
                         }
-                    } else if let brief = viewModel.dailyBrief {
-                        // User Info
-                        UserInfoCard(user: brief.user)
-                        
-                        // Weather
-                        if let weather = brief.weather {
-                            WeatherCard(weather: weather)
-                        }
-                        
-                        // Countdowns
-                        if let countdowns = brief.countdowns, !countdowns.isEmpty {
-                            CountdownsCard(countdowns: countdowns)
-                        }
-                        
-                        // Nameday
-                        if let nameday = brief.nameday {
-                            NamedayCard(nameday: nameday)
-                        }
                     }
+                    .padding()
                 }
-                .padding()
-            }
             }
             .navigationTitle("Trident")
             .refreshable {
                 await viewModel.fetchDailyBrief()
             }
         }
-        .task {
-            await viewModel.fetchDailyBrief()
+        .onAppear {
+            // Update view model with environment objects
+            let newViewModel = DailyBriefViewModel(
+                weatherService: weatherService,
+                countdownStore: countdownStore,
+                locationManager: locationManager
+            )
+            _viewModel.wrappedValue = newViewModel
+            
+            Task {
+                await viewModel.fetchDailyBrief()
+            }
         }
     }
 }
