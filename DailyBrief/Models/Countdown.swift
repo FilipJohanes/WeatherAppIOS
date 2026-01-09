@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct Countdown: Codable, Identifiable {
     let name: String

@@ -1,23 +1,29 @@
 import Foundation
+import SwiftUI
 
 struct Weather: Codable {
     let location: String
-    let coordinates: Coordinates
-    let timezone: String
-    let today: DayWeather
+    let currentTemp: Double
+    let feelsLike: Double
+    let condition: WeatherCondition
+    let humidity: Int
+    let windSpeed: Double
+    let tempMin: Double
+    let tempMax: Double
     let weekForecast: [DayWeather]
-    let summaryText: String
     
-    enum CodingKeys: String, CodingKey {
-        case location, coordinates, timezone, today
-        case weekForecast = "week_forecast"
-        case summaryText = "summary_text"
+    var today: DayWeather {
+        DayWeather(
+            date: nil,
+            dayName: "Today",
+            tempMax: tempMax,
+            tempMin: tempMin,
+            precipitationSum: 0,
+            precipitationProbability: weekForecast.first?.precipitationProbability ?? 0,
+            windSpeedMax: windSpeed,
+            condition: condition.rawValue
+        )
     }
-}
-
-struct Coordinates: Codable {
-    let lat: Double
-    let lon: Double
 }
 
 struct DayWeather: Codable, Identifiable {
@@ -34,6 +40,10 @@ struct DayWeather: Codable, Identifiable {
         date ?? UUID().uuidString
     }
     
+    var conditionEnum: WeatherCondition {
+        WeatherCondition(rawValue: condition) ?? .clear
+    }
+    
     enum CodingKeys: String, CodingKey {
         case date, condition
         case dayName = "day_name"
@@ -42,6 +52,28 @@ struct DayWeather: Codable, Identifiable {
         case precipitationSum = "precipitation_sum"
         case precipitationProbability = "precipitation_probability"
         case windSpeedMax = "wind_speed_max"
+    }
+}
+
+// MARK: - Weather Condition
+
+enum WeatherCondition: String, Codable {
+    case clear = "clear"
+    case clouds = "clouds"
+    case drizzle = "drizzle"
+    case rain = "rain"
+    case snow = "snow"
+    case thunderstorm = "thunderstorm"
+    
+    var weatherEmoji: String {
+        switch self {
+        case .clear: return "☀️"
+        case .clouds: return "☁️"
+        case .drizzle: return "🌦️"
+        case .rain: return "🌧️"
+        case .snow: return "❄️"
+        case .thunderstorm: return "⛈️"
+        }
     }
 }
 

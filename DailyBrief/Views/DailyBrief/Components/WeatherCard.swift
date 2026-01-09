@@ -10,7 +10,7 @@ struct WeatherCard: View {
                 Text(weather.location)
                     .font(.headline)
                 Spacer()
-                Text(weather.today.condition.weatherEmoji)
+                Text(weather.today.conditionEnum.weatherEmoji)
                     .font(.title)
             }
             

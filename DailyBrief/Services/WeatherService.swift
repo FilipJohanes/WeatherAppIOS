@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import CoreLocation
 
 /// Direct weather service using Open-Meteo API

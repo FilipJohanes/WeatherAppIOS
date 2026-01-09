@@ -21,44 +21,45 @@ struct WeatherView: View {
                     .ignoresSafeArea()
                 
                 ScrollView {
-                if viewModel.isLoading {
-                    ProgressView()
-                } else if let error = viewModel.errorMessage {
-                    ErrorView(message: error) {
-                        Task { await viewModel.fetchWeather() }
-                    }
-                } else if let weather = viewModel.weather {
-                    VStack(spacing: 20) {
-                        WeatherCard(weather: weather)
-                        
-                        // Week Forecast Details
-                        VStack(alignment: .leading, spacing: 15) {
-                            Text("7-Day Forecast")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            ForEach(weather.weekForecast) { day in
-                                WeekDayDetailView(day: day)
-                            }
+                    if viewModel.isLoading {
+                        ProgressView()
+                    } else if let error = viewModel.errorMessage {
+                        ErrorView(message: error) {
+                            Task { await viewModel.fetchWeather() }
                         }
-                        .padding()
+                    } else if let weather = viewModel.weather {
+                        VStack(spacing: 20) {
+                            WeatherCard(weather: weather)
+                            
+                            // Week Forecast Details
+                            VStack(alignment: .leading, spacing: 15) {
+                                Text("7-Day Forecast")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                
+                                ForEach(weather.weekForecast) { day in
+                                    WeekDayDetailView(day: day)
+                                }
+                            }
+                            .padding()
+                        }
                     }
                 }
+                .navigationTitle("Weather")
+                .refreshable {
+                    await viewModel.fetchWeather()
+                }
             }
-            .navigationTitle("Weather")
-            .refreshable {
-                await viewModel.fetchWeather()
-            }
-        }
-        .onAppear {
-            let newViewModel = WeatherViewModel(
-                weatherService: weatherService,
-                locationManager: locationManager
-            )
-            _viewModel.wrappedValue = newViewModel
-            
-            Task {
-                await viewModel.fetchWeather()
+            .onAppear {
+                let newViewModel = WeatherViewModel(
+                    weatherService: weatherService,
+                    locationManager: locationManager
+                )
+                _viewModel.wrappedValue = newViewModel
+                
+                Task {
+                    await viewModel.fetchWeather()
+                }
             }
         }
     }

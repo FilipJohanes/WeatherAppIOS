@@ -20,43 +20,43 @@ struct CountdownView: View {
                     .ignoresSafeArea()
                 
                 Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                } else if let error = viewModel.errorMessage {
-                    ErrorView(message: error) {
-                        Task { await viewModel.fetchCountdowns() }
-                    }
-                } else if viewModel.countdowns.isEmpty {
-                    VStack(spacing: 20) {
-                        Image(systemName: "calendar.badge.plus")
-                            .font(.system(size: 60))
-                            .foregroundColor(.secondary)
-                        Text("No events yet")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Button(action: { showingAddCountdown = true }) {
-                            Text("Add Your First Event")
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding()
-                                .background(Color(red: 0.20, green: 0.40, blue: 0.60))
-                                .cornerRadius(10)
+                    if viewModel.isLoading {
+                        ProgressView()
+                    } else if let error = viewModel.errorMessage {
+                        ErrorView(message: error) {
+                            Task { await viewModel.fetchCountdowns() }
                         }
-                    }
-                } else {
-                    List {
-                        ForEach(viewModel.countdowns) { countdown in
-                            CountdownRow(countdown: countdown)
+                    } else if viewModel.countdowns.isEmpty {
+                        VStack(spacing: 20) {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 60))
+                                .foregroundColor(.secondary)
+                            Text("No events yet")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            
+                            Button(action: { showingAddCountdown = true }) {
+                                Text("Add Your First Event")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .background(Color(red: 0.20, green: 0.40, blue: 0.60))
+                                    .cornerRadius(10)
+                            }
                         }
-                        .onDelete(perform: viewModel.delete)
+                    } else {
+                        List {
+                            ForEach(viewModel.countdowns) { countdown in
+                                CountdownRow(countdown: countdown)
+                            }
+                            .onDelete(perform: viewModel.delete)
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
-            }
-            .navigationTitle("Events (\(viewModel.countdowns.count)/20)")
-            .toolbar {
+                .navigationTitle("Events (\(viewModel.countdowns.count)/20)")
+                .toolbar {
                 if viewModel.canAddMore {
                     Button(action: { showingAddCountdown = true }) {
                         Image(systemName: "plus")
@@ -69,13 +69,13 @@ struct CountdownView: View {
             .refreshable {
                 await viewModel.fetchCountdowns()
             }
-        }
-        .onAppear {
-            let newViewModel = CountdownViewModel(countdownStore: countdownStore)
-            _viewModel.wrappedValue = newViewModel
-            
-            Task {
-                await viewModel.fetchCountdowns()
+            .onAppear {
+                let newViewModel = CountdownViewModel(countdownStore: countdownStore)
+                _viewModel.wrappedValue = newViewModel
+                
+                Task {
+                    await viewModel.fetchCountdowns()
+                }
             }
         }
     }
@@ -129,12 +129,13 @@ struct AddCountdownView: View {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
         let countdown = Countdown(
-            id: UUID().uuidString,
             name: name,
             date: dateFormatter.string(from: date),
             yearly: yearly,
             daysLeft: calculateDaysLeft(),
-            isPast: date < Date()
+            nextOccurrence: dateFormatter.string(from: date),
+            isPast: date < Date(),
+            message: calculateDaysLeft() == 0 ? "Today!" : calculateDaysLeft() == 1 ? "Tomorrow" : "\(calculateDaysLeft()) days"
         )
         
         viewModel.add(countdown)
