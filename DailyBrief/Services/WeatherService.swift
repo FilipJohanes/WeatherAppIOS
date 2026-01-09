@@ -1,11 +1,14 @@
 import Foundation
 import SwiftUI
+import Combine
 import CoreLocation
 
 /// Direct weather service using Open-Meteo API
 /// No backend required - calls API directly from app
 /// No API key needed - completely free!
+
 class WeatherService: ObservableObject {
+    @Published var lastUpdated: Date?
     
     // MARK: - Configuration
     // Open-Meteo API - Free, no API key required!
@@ -111,12 +114,16 @@ class WeatherService: ObservableObject {
             let dateString = daily.time[i]
             let date = ISO8601DateFormatter().date(from: dateString) ?? Date()
             
+            // We must match the EXACT order and TYPES defined in your DayWeather struct
             let dayWeather = DayWeather(
-                dayName: formatDayName(date),
-                tempMin: daily.temperature_2m_min[i],
-                tempMax: daily.temperature_2m_max[i],
-                condition: weatherCodeToCondition(daily.weather_code[i]),
-                precipitationProbability: daily.precipitation_probability_max?[i] ?? 0
+                date: dateString,                                 // 1. date
+                dayName: formatDayName(date),                     // 2. dayName
+                tempMax: daily.temperature_2m_max[i],             // 3. tempMax
+                tempMin: daily.temperature_2m_min[i],             // 4. tempMin
+                precipitationSum: 0.0,                            // 5. precipitationSum (New Order)
+                precipitationProbability: daily.precipitation_probability_max?[i] ?? 0, // 6. probability
+                windSpeedMax: 0.0,                                // 7. windSpeedMax
+                condition: weatherCodeToCondition(daily.weather_code[i]).rawValue  // 8. condition (Last)
             )
             weekForecast.append(dayWeather)
         }

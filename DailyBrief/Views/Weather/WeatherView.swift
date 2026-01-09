@@ -4,19 +4,21 @@ struct WeatherView: View {
     @EnvironmentObject var weatherService: WeatherService
     @EnvironmentObject var locationManager: LocationManager
     
+    // We declare the StateObject without initializing it here
     @StateObject private var viewModel: WeatherViewModel
     
-    init() {
+    // Pass the services into the init
+    init(weatherService: WeatherService, locationManager: LocationManager) {
+        // We use the underscore to initialize the storage of the StateObject
         _viewModel = StateObject(wrappedValue: WeatherViewModel(
-            weatherService: WeatherService(),
-            locationManager: LocationManager()
+            weatherService: weatherService,
+            locationManager: locationManager
         ))
     }
     
     var body: some View {
         NavigationView {
             ZStack {
-                // Blue background
                 Color(red: 0.68, green: 0.85, blue: 0.90)
                     .ignoresSafeArea()
                 
@@ -31,7 +33,6 @@ struct WeatherView: View {
                         VStack(spacing: 20) {
                             WeatherCard(weather: weather)
                             
-                            // Week Forecast Details
                             VStack(alignment: .leading, spacing: 15) {
                                 Text("7-Day Forecast")
                                     .font(.title2)
@@ -51,12 +52,8 @@ struct WeatherView: View {
                 }
             }
             .onAppear {
-                let newViewModel = WeatherViewModel(
-                    weatherService: weatherService,
-                    locationManager: locationManager
-                )
-                _viewModel.wrappedValue = newViewModel
-                
+                // DON'T re-assign the viewModel here.
+                // Just trigger the action.
                 Task {
                     await viewModel.fetchWeather()
                 }

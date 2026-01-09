@@ -6,13 +6,13 @@ struct DailyBriefView: View {
     @EnvironmentObject var locationManager: LocationManager
     
     @StateObject private var viewModel: DailyBriefViewModel
-    
-    init() {
-        // Will be initialized with environment objects
+
+    // Add this init to accept the services
+    init(weatherService: WeatherService, countdownStore: CountdownStore, locationManager: LocationManager) {
         _viewModel = StateObject(wrappedValue: DailyBriefViewModel(
-            weatherService: WeatherService(),
-            countdownStore: CountdownStore(),
-            locationManager: LocationManager()
+            weatherService: weatherService,
+            countdownStore: countdownStore,
+            locationManager: locationManager
         ))
     }
     
@@ -67,14 +67,7 @@ struct DailyBriefView: View {
             }
         }
         .onAppear {
-            // Update view model with environment objects
-            let newViewModel = DailyBriefViewModel(
-                weatherService: weatherService,
-                countdownStore: countdownStore,
-                locationManager: locationManager
-            )
-            _viewModel.wrappedValue = newViewModel
-            
+          
             Task {
                 await viewModel.fetchDailyBrief()
             }

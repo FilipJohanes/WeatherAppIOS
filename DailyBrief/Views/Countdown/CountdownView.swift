@@ -57,136 +57,135 @@ struct CountdownView: View {
                 }
                 .navigationTitle("Events (\(viewModel.countdowns.count)/20)")
                 .toolbar {
-                if viewModel.canAddMore {
-                    Button(action: { showingAddCountdown = true }) {
-                        Image(systemName: "plus")
+                    if viewModel.canAddMore {
+                        Button(action: { showingAddCountdown = true }) {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
-            }
-            .sheet(isPresented: $showingAddCountdown) {
-                AddCountdownView(viewModel: viewModel)
-            }
-            .refreshable {
-                await viewModel.fetchCountdowns()
-            }
-            .onAppear {
-                let newViewModel = CountdownViewModel(countdownStore: countdownStore)
-                _viewModel.wrappedValue = newViewModel
-                
-                Task {
+                .sheet(isPresented: $showingAddCountdown) {
+                    AddCountdownView(viewModel: viewModel)
+                }
+                .refreshable {
                     await viewModel.fetchCountdowns()
                 }
-            }
-        }
-    }
-}
-
-struct AddCountdownView: View {
-    @Environment(\.dismiss) var dismiss
-    @ObservedObject var viewModel: CountdownViewModel
-    
-    @State private var name = ""
-    @State private var date = Date()
-    @State private var yearly = false
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                Section("Event Details") {
-                    TextField("Event Name", text: $name)
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
-                    Toggle("Yearly", isOn: $yearly)
-                }
-                
-                if let error = viewModel.errorMessage {
-                    Section {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .font(.caption)
+                .onAppear {
+                    
+                    Task {
+                        await viewModel.fetchCountdowns()
                     }
-                }
-            }
-            .navigationTitle("New Event")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        addCountdown()
-                    }
-                    .disabled(name.isEmpty)
                 }
             }
         }
     }
     
-    private func addCountdown() {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
+    struct AddCountdownView: View {
+        @Environment(\.dismiss) var dismiss
+        @ObservedObject var viewModel: CountdownViewModel
         
-        let countdown = Countdown(
-            name: name,
-            date: dateFormatter.string(from: date),
-            yearly: yearly,
-            daysLeft: calculateDaysLeft(),
-            nextOccurrence: dateFormatter.string(from: date),
-            isPast: date < Date(),
-            message: calculateDaysLeft() == 0 ? "Today!" : calculateDaysLeft() == 1 ? "Tomorrow" : "\(calculateDaysLeft()) days"
-        )
+        @State private var name = ""
+        @State private var date = Date()
+        @State private var yearly = false
         
-        viewModel.add(countdown)
-        
-        if viewModel.errorMessage == nil {
-            dismiss()
-        }
-    }
-    
-    private func calculateDaysLeft() -> Int {
-        let calendar = Calendar.current
-        let now = calendar.startOfDay(for: Date())
-        let eventDate = calendar.startOfDay(for: date)
-        let components = calendar.dateComponents([.day], from: now, to: eventDate)
-        return components.day ?? 0
-    }
-}
-
-struct CountdownRow: View {
-    let countdown: Countdown
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(countdown.name)
-                    .font(.headline)
-                
-                Text(countdown.date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if countdown.yearly {
-                    Label("Yearly", systemImage: "repeat")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
+        var body: some View {
+            NavigationView {
+                Form {
+                    Section("Event Details") {
+                        TextField("Event Name", text: $name)
+                        DatePicker("Date", selection: $date, displayedComponents: .date)
+                        Toggle("Yearly", isOn: $yearly)
+                    }
+                    
+                    if let error = viewModel.errorMessage {
+                        Section {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                    }
+                }
+                .navigationTitle("New Event")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Add") {
+                            addCountdown()
+                        }
+                        .disabled(name.isEmpty)
+                    }
                 }
             }
+        }
+        
+        private func addCountdown() {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
             
-            Spacer()
+            let countdown = Countdown(
+                name: name,
+                date: dateFormatter.string(from: date),
+                yearly: yearly,
+                daysLeft: calculateDaysLeft(),
+                nextOccurrence: dateFormatter.string(from: date),
+                isPast: date < Date(),
+                message: calculateDaysLeft() == 0 ? "Today!" : calculateDaysLeft() == 1 ? "Tomorrow" : "\(calculateDaysLeft()) days"
+            )
             
-            VStack {
-                Text("\(countdown.daysLeft)")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(countdown.isPast ? .gray : .blue)
-                
-                Text("days")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            viewModel.add(countdown)
+            
+            if viewModel.errorMessage == nil {
+                dismiss()
             }
         }
-        .padding(.vertical, 8)
+        
+        private func calculateDaysLeft() -> Int {
+            let calendar = Calendar.current
+            let now = calendar.startOfDay(for: Date())
+            let eventDate = calendar.startOfDay(for: date)
+            let components = calendar.dateComponents([.day], from: now, to: eventDate)
+            return components.day ?? 0
+        }
+    }
+    
+    struct CountdownRow: View {
+        let countdown: Countdown
+        
+        var body: some View {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(countdown.name)
+                        .font(.headline)
+                    
+                    Text(countdown.date)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if countdown.yearly {
+                        Label("Yearly", systemImage: "repeat")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                Spacer()
+                
+                VStack {
+                    Text("\(countdown.daysLeft)")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(countdown.isPast ? .gray : .blue)
+                    
+                    Text("days")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical, 8)
+        }
     }
 }

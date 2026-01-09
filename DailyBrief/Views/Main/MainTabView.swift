@@ -1,17 +1,30 @@
 import SwiftUI
 
 struct MainTabView: View {
+    // 1. Grab the services from the environment
+    @EnvironmentObject var weatherService: WeatherService
+    @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var countdownStore: CountdownStore
+
     var body: some View {
         TabView {
-            DailyBriefView()
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
+            // 2. Pass them to the views that now require them in their init
+            DailyBriefView(
+                weatherService: weatherService,
+                countdownStore: countdownStore,
+                locationManager: locationManager
+            )
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
             
-            WeatherView()
-                .tabItem {
-                    Label("Weather", systemImage: "cloud.sun.fill")
-                }
+            WeatherView(
+                weatherService: weatherService,
+                locationManager: locationManager
+            )
+            .tabItem {
+                Label("Weather", systemImage: "cloud.sun.fill")
+            }
             
             CountdownView()
                 .tabItem {

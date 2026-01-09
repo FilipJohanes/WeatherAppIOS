@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+internal import _LocationEssentials
 
 @MainActor
 class WeatherViewModel: ObservableObject {
