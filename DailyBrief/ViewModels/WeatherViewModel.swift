@@ -319,18 +319,20 @@ class WeatherViewModel: ObservableObject {
     }
     
     /// Deletes locations at indices
-    func deleteLocations(at offsets: IndexSet) {
-        // Filter out current location (always at index 0)
-        let validOffsets = offsets.filter { index in
-            guard index < locationWeathers.count else { return false }
-            return !locationWeathers[index].location.isCurrentLocation
+        func deleteLocations(at offsets: IndexSet) {
+            // Filter out current location (always at index 0)
+            // FIX: Wrap the result of .filter in IndexSet()
+            let validOffsets = IndexSet(offsets.filter { index in
+                guard index < locationWeathers.count else { return false }
+                return !locationWeathers[index].location.isCurrentLocation
+            })
+            
+            guard !validOffsets.isEmpty else { return }
+            
+            // Now validOffsets is the correct type: IndexSet
+            weatherStore.delete(at: validOffsets)
+            loadTrackedLocations()
         }
-        
-        guard !validOffsets.isEmpty else { return }
-        
-        weatherStore.delete(at: validOffsets)
-        loadTrackedLocations()
-    }
     
     /// Selects a location for home screen display
     func selectForHome(_ location: TrackedLocation) {
