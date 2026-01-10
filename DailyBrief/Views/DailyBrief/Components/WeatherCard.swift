@@ -14,6 +14,20 @@ struct WeatherCard: View {
                     .font(.title)
             }
             
+            // Current Temperature
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("\(Int(weather.currentTemp))°")
+                        .font(.system(size: 48, weight: .bold))
+                    Text("Feels like \(Int(weather.feelsLike))°")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            
+            Divider()
+            
             HStack(spacing: 30) {
                 VStack {
                     Text("\(Int(weather.today.tempMax))°")
@@ -56,7 +70,13 @@ struct WeatherCard: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(
+            Color(red: 0.53, green: 0.81, blue: 0.92).opacity(0.1)  // Sky blue at 10% opacity
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(Color.white, lineWidth: 1.5)  // Thin white border
+        )
         .cornerRadius(15)
         .shadow(radius: 2)
     }

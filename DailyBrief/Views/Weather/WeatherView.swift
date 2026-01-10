@@ -339,11 +339,11 @@ struct LocationWeatherRow: View {
             }
             .buttonStyle(.plain)
             
-            // Always show expanded weather details if weather is available
-            if let weather = locationWeather.weather {
-                Divider()
-                
-                HStack(spacing: 20) {
+            // Always show weather details section (with placeholder if no weather)
+            Divider()
+            
+            HStack(spacing: 20) {
+                if let weather = locationWeather.weather {
                     WeatherDetailItem(
                         icon: "drop.fill",
                         label: "Humidity",
@@ -361,10 +361,30 @@ struct LocationWeatherRow: View {
                         label: "Feels Like",
                         value: "\(Int(weather.feelsLike))°"
                     )
+                } else {
+                    // Placeholder to maintain consistent height
+                    WeatherDetailItem(
+                        icon: "drop.fill",
+                        label: "Humidity",
+                        value: "--"
+                    )
+                    
+                    WeatherDetailItem(
+                        icon: "wind",
+                        label: "Wind",
+                        value: "--"
+                    )
+                    
+                    WeatherDetailItem(
+                        icon: "thermometer",
+                        label: "Feels Like",
+                        value: "--"
+                    )
                 }
-                .padding()
-                .background(Color(.systemGray6))
             }
+            .padding()
+            .background(Color(.systemGray6))
+            .frame(height: 70)  // Fixed height for consistency
         }
         .background(Color(.systemBackground))
         .cornerRadius(12)

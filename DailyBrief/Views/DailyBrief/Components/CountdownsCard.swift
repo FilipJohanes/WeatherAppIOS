@@ -32,7 +32,13 @@ struct CountdownsCard: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(
+            Color(red: 0.53, green: 0.81, blue: 0.92).opacity(0.1)  // Sky blue at 10% opacity
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(Color.white, lineWidth: 1.5)  // Thin white border
+        )
         .cornerRadius(15)
         .shadow(radius: 2)
     }
