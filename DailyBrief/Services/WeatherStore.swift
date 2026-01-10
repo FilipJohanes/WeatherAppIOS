@@ -133,7 +133,7 @@ class WeatherStore: ObservableObject {
     /// Delete location at index
     func delete(at offsets: IndexSet) {
         // Filter out current location index (index 0)
-        let validOffsets = offsets.filter { $0 != 0 }
+        let validOffsets = IndexSet(offsets.filter { $0 != 0 })
         
         let locationsToDelete = validOffsets.map { trackedLocations[$0] }
         let wasSelectedDeleted = locationsToDelete.contains { $0.isSelectedForHome }

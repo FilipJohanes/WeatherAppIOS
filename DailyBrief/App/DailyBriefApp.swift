@@ -32,7 +32,7 @@ struct DailyBriefApp: App {
     /// Weather store - manages tracked locations
     @StateObject private var weatherStore = WeatherStore()
     
-    var body: some Scene:
+    var body: some Scene {
         WindowGroup {
             // Root view with all services injected
             MainTabView()
