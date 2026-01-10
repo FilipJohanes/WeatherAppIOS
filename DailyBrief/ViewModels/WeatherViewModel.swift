@@ -230,15 +230,21 @@ class WeatherViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // Geocode to get proper city name and coordinates
+            // Try geocoding with better formatting
             let geocoder = CLGeocoder()
-            let placemarks = try await geocoder.geocodeAddressString(cityName)
+            let searchString = cityName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let placemarks = try await geocoder.geocodeAddressString(searchString)
             
             guard let placemark = placemarks.first,
-                  let location = placemark.location,
-                  let resolvedCityName = placemark.locality else {
+                  let location = placemark.location else {
                 throw WeatherError.cityNotFound
             }
+            
+            // Use locality, or fall back to administrative area or name
+            let resolvedCityName = placemark.locality 
+                                ?? placemark.administrativeArea 
+                                ?? placemark.name 
+                                ?? cityName
             
             await addCityWithCoordinates(
                 cityName: resolvedCityName,
@@ -297,7 +303,15 @@ class WeatherViewModel: ObservableObject {
     
     /// Deletes locations at indices
     func deleteLocations(at offsets: IndexSet) {
-        weatherStore.delete(at: offsets)
+        // Filter out current location (always at index 0)
+        let validOffsets = offsets.filter { index in
+            guard index < locationWeathers.count else { return false }
+            return !locationWeathers[index].location.isCurrentLocation
+        }
+        
+        guard !validOffsets.isEmpty else { return }
+        
+        weatherStore.delete(at: validOffsets)
         loadTrackedLocations()
     }
     

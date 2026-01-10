@@ -178,6 +178,27 @@ struct CountdownView: View {
                     Text("\(countdown.daysLeft)")
                         .font(.title)
                         .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Text("days")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(
+                Color(red: 0.53, green: 0.81, blue: 0.92).opacity(0.1)  // Sky blue at 10% opacity
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white, lineWidth: 1.5)  // Thin white border
+            )
+            .cornerRadius(12)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        }
+    }
                         .foregroundColor(countdown.isPast ? .gray : .blue)
                     
                     Text("days")

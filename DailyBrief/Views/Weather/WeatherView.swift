@@ -90,11 +90,11 @@ struct WeatherView: View {
                             viewModel.selectForHome(locationWeather.location)
                             // Navigate to home tab
                             selectedTab = 0
-                        },
-                        onDelete: locationWeather.location.isCurrentLocation ? nil : {
-                            viewModel.deleteLocation(locationWeather.location)
                         }
                     )
+                }
+                .onDelete { indexSet in
+                    viewModel.deleteLocations(at: indexSet)
                 }
                 
                 if !viewModel.canAddMore {
@@ -265,154 +265,56 @@ struct LocationWeatherRow: View {
     let locationWeather: LocationWeather
     let isSelected: Bool
     let onSelect: () -> Void
-    let onDelete: (() -> Void)?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Main row - tap to select
-            Button(action: onSelect) {
-                HStack {
-                    // Location name with icon
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            if locationWeather.location.isCurrentLocation {
-                                Image(systemName: "location.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
-                            
-                            Text(locationWeather.displayName)
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            if isSelected {
-                                Image(systemName: "star.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.yellow)
-                            }
-                        }
-                        
-                        if locationWeather.location.isCurrentLocation && locationWeather.weather == nil && locationWeather.errorMessage == nil {
-                            Text("Location unavailable")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Weather info or error
-                    if let weather = locationWeather.weather {
-                        HStack(spacing: 8) {
-                            Text(weather.condition.weatherEmoji)
-                                .font(.title2)
-                            
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(Int(weather.currentTemp))°")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                
-                                Text("\(Int(weather.tempMax))° / \(Int(weather.tempMin))°")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    } else if let error = locationWeather.errorMessage {
-                        Text("Error")
+        Button(action: onSelect) {
+            HStack {
+                // Location name with icon
+                HStack(spacing: 8) {
+                    if locationWeather.location.isCurrentLocation {
+                        Image(systemName: "location.fill")
                             .font(.caption)
-                            .foregroundColor(.red)
-                    } else if locationWeather.isLoading {
-                        ProgressView()
+                            .foregroundColor(.blue)
                     }
                     
-                    // Delete button (only for manual locations)
-                    if let onDelete = onDelete {
-                        Button(action: onDelete) {
-                            Image(systemName: "trash")
-                                .font(.body)
-                                .foregroundColor(.red)
-                        }
-                        .buttonStyle(.borderless)
+                    Text(locationWeather.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    if isSelected {
+                        Image(systemName: "star.fill")
+                            .font(.caption)
+                            .foregroundColor(.yellow)
                     }
                 }
-                .padding()
-            }
-            .buttonStyle(.plain)
-            
-            // Always show weather details section (with placeholder if no weather)
-            Divider()
-            
-            HStack(spacing: 20) {
+                
+                Spacer()
+                
+                // Weather info
                 if let weather = locationWeather.weather {
-                    WeatherDetailItem(
-                        icon: "drop.fill",
-                        label: "Humidity",
-                        value: "\(weather.humidity)%"
-                    )
-                    
-                    WeatherDetailItem(
-                        icon: "wind",
-                        label: "Wind",
-                        value: "\(Int(weather.windSpeed)) km/h"
-                    )
-                    
-                    WeatherDetailItem(
-                        icon: "thermometer",
-                        label: "Feels Like",
-                        value: "\(Int(weather.feelsLike))°"
-                    )
-                } else {
-                    // Placeholder to maintain consistent height
-                    WeatherDetailItem(
-                        icon: "drop.fill",
-                        label: "Humidity",
-                        value: "--"
-                    )
-                    
-                    WeatherDetailItem(
-                        icon: "wind",
-                        label: "Wind",
-                        value: "--"
-                    )
-                    
-                    WeatherDetailItem(
-                        icon: "thermometer",
-                        label: "Feels Like",
-                        value: "--"
-                    )
+                    HStack(spacing: 12) {
+                        Text(weather.condition.weatherEmoji)
+                            .font(.title2)
+                        
+                        Text("\(Int(weather.currentTemp))°")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                    }
+                } else if locationWeather.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                } else if locationWeather.location.isCurrentLocation {
+                    Text("--")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
                 }
             }
             .padding()
-            .background(Color(.systemGray6))
-            .frame(height: 70)  // Fixed height for consistency
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(radius: 2)
         }
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 2)
-    }
-}
-
-// MARK: - Weather Detail Item
-
-struct WeatherDetailItem: View {
-    let icon: String
-    let label: String
-    let value: String
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundColor(.blue)
-            
-            Text(value)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-            
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
+        .buttonStyle(.plain)
     }
 }
 

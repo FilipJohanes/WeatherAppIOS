@@ -150,17 +150,17 @@ class WeatherStore: ObservableObject {
     
     /// Select a location to display on home screen
     func selectForHome(_ location: TrackedLocation) {
-        // Deselect all others
-        for i in 0..<trackedLocations.count {
-            trackedLocations[i].isSelectedForHome = false
-        }
-        
-        // Select the specified one
-        if let index = trackedLocations.firstIndex(where: { $0.id == location.id }) {
-            trackedLocations[index].isSelectedForHome = true
+        // Deselect all others and select the specified one
+        trackedLocations = trackedLocations.map { loc in
+            var updatedLoc = loc
+            updatedLoc.isSelectedForHome = (loc.id == location.id)
+            return updatedLoc
         }
         
         save()
+        
+        // Force publish update
+        objectWillChange.send()
     }
     
     /// Update current location with actual coordinates and city name
