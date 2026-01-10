@@ -7,10 +7,11 @@ internal import _LocationEssentials
 /// **What it does:**
 /// - Combines weather and countdown information
 /// - Manages the main "Daily Brief" home screen
-/// - Coordinates data from WeatherService and CountdownStore
+/// - Shows weather for user's selected location
 /// 
 /// **How it works:**
-/// - Fetches weather based on current location
+/// - Fetches weather for the location selected in WeatherStore
+/// - Falls back to current location if no selection
 /// - Loads countdowns from local storage
 /// - Publishes combined data to DailyBriefView
 /// 
@@ -20,7 +21,7 @@ internal import _LocationEssentials
 class DailyBriefViewModel: ObservableObject {
     // MARK: - Published Properties
     
-    /// Current weather data
+    /// Current weather data for selected location
     @Published var weather: Weather?
     
     /// List of user's countdowns
@@ -37,17 +38,22 @@ class DailyBriefViewModel: ObservableObject {
     private let weatherService: WeatherService
     private let countdownStore: CountdownStore
     private let locationManager: LocationManager
+    private let weatherStore: WeatherStore
     
     // MARK: - Initialization
     
     /// Initializes with required services and sets up data bindings
-    init(weatherService: WeatherService, countdownStore: CountdownStore, locationManager: LocationManager) {
+    init(weatherService: WeatherService, 
+         countdownStore: CountdownStore, 
+         locationManager: LocationManager,
+         weatherStore: WeatherStore) {
         self.weatherService = weatherService
         self.countdownStore = countdownStore
         self.locationManager = locationManager
+        self.weatherStore = weatherStore
         self.countdowns = countdownStore.countdowns
         
-        // Observe changes from store
+        // Observe changes from countdown store
         countdownStore.$countdowns
             .assign(to: &$countdowns)
     }
@@ -55,34 +61,79 @@ class DailyBriefViewModel: ObservableObject {
     // MARK: - Public Methods
     
     /// Fetches all data for the Daily Brief screen
-    /// Combines weather and countdown data into single view
+    /// Gets weather for user's selected location (or current if none selected)
     func fetchDailyBrief() async {
         isLoading = true
         errorMessage = nil
         
-        // Request location if not available
-        if locationManager.location == nil {
-            locationManager.requestLocation()
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-        }
+        // Get the selected location from WeatherStore
+        let selectedLocation = weatherStore.selectedLocation
         
-        // Fetch weather
-        if let location = locationManager.location {
-            do {
-                weather = try await weatherService.getWeather(
-                    lat: location.coordinate.latitude,
-                    lon: location.coordinate.longitude
-                )
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+        // Fetch weather based on selected location
+        if let selected = selectedLocation {
+            await fetchWeatherForLocation(selected)
         } else {
-            errorMessage = "Unable to get your location"
+            // Fallback: try to get current location weather
+            await fetchCurrentLocationWeather()
         }
         
         // Countdowns are already loaded from local storage
         countdowns = countdownStore.countdowns
         
         isLoading = false
+    }
+    
+    // MARK: - Private Methods
+    
+    /// Fetches weather for a specific tracked location
+    private func fetchWeatherForLocation(_ location: TrackedLocation) async {
+        // If it's current location, need GPS
+        if location.isCurrentLocation {
+            await fetchCurrentLocationWeather()
+            return
+        }
+        
+        // For manual locations, use stored coordinates
+        guard let lat = location.latitude, let lon = location.longitude else {
+            errorMessage = "Invalid location coordinates"
+            return
+        }
+        
+        do {
+            weather = try await weatherService.getWeather(lat: lat, lon: lon)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    /// Fetches weather for current GPS location
+    private func fetchCurrentLocationWeather() async {
+        // Request location if not available
+        if locationManager.location == nil {
+            locationManager.requestLocation()
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        
+        // Fetch weather if location available
+        if let location = locationManager.location {
+            do {
+                weather = try await weatherService.getWeather(
+                    lat: location.coordinate.latitude,
+                    lon: location.coordinate.longitude
+                )
+                
+                // Update weather store with current location info
+                weatherStore.updateCurrentLocation(
+                    cityName: weather?.location ?? "Unknown",
+                    latitude: location.coordinate.latitude,
+                    longitude: location.coordinate.longitude
+                )
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            // Location not available - show nil weather (will show empty state)
+            weather = nil
+        }
     }
 }

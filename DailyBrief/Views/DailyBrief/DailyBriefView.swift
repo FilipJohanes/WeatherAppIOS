@@ -4,15 +4,17 @@ struct DailyBriefView: View {
     @EnvironmentObject var weatherService: WeatherService
     @EnvironmentObject var countdownStore: CountdownStore
     @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var weatherStore: WeatherStore
     
     @StateObject private var viewModel: DailyBriefViewModel
 
     // Add this init to accept the services
-    init(weatherService: WeatherService, countdownStore: CountdownStore, locationManager: LocationManager) {
+    init(weatherService: WeatherService, countdownStore: CountdownStore, locationManager: LocationManager, weatherStore: WeatherStore) {
         _viewModel = StateObject(wrappedValue: DailyBriefViewModel(
             weatherService: weatherService,
             countdownStore: countdownStore,
-            locationManager: locationManager
+            locationManager: locationManager,
+            weatherStore: weatherStore
         ))
     }
     

@@ -29,13 +29,17 @@ struct DailyBriefApp: App {
     /// Location manager - shared across all views
     @StateObject private var locationManager = LocationManager()
     
-    var body: some Scene {
+    /// Weather store - manages tracked locations
+    @StateObject private var weatherStore = WeatherStore()
+    
+    var body: some Scene:
         WindowGroup {
             // Root view with all services injected
             MainTabView()
                 .environmentObject(weatherService)
                 .environmentObject(countdownStore)
                 .environmentObject(locationManager)
+                .environmentObject(weatherStore)
         }
     }
 }

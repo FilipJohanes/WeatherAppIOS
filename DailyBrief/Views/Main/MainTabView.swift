@@ -5,6 +5,7 @@ struct MainTabView: View {
     @EnvironmentObject var weatherService: WeatherService
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var countdownStore: CountdownStore
+    @EnvironmentObject var weatherStore: WeatherStore
 
     var body: some View {
         TabView {
@@ -12,7 +13,8 @@ struct MainTabView: View {
             DailyBriefView(
                 weatherService: weatherService,
                 countdownStore: countdownStore,
-                locationManager: locationManager
+                locationManager: locationManager,
+                weatherStore: weatherStore
             )
             .tabItem {
                 Label("Home", systemImage: "house.fill")
@@ -20,7 +22,8 @@ struct MainTabView: View {
             
             WeatherView(
                 weatherService: weatherService,
-                locationManager: locationManager
+                locationManager: locationManager,
+                weatherStore: weatherStore
             )
             .tabItem {
                 Label("Weather", systemImage: "cloud.sun.fill")
