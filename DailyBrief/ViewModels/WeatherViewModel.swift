@@ -84,9 +84,26 @@ class WeatherViewModel: ObservableObject {
     // MARK: - Public Methods
     
     /// Loads tracked locations from store and creates LocationWeather objects
+    /// Preserves existing weather data if location already exists
     func loadTrackedLocations() {
+        // Create a dictionary of existing weather data by location ID
+        let existingWeather = Dictionary(uniqueKeysWithValues: locationWeathers.map { ($0.id, ($0.weather, $0.errorMessage, $0.isLoading)) })
+        
+        // Map to LocationWeather objects, preserving existing weather data
         locationWeathers = weatherStore.trackedLocations.map { location in
-            LocationWeather(id: location.id, location: location)
+            if let (weather, error, isLoading) = existingWeather[location.id] {
+                // Preserve existing weather data but update location details
+                return LocationWeather(
+                    id: location.id,
+                    location: location,
+                    weather: weather,
+                    errorMessage: error,
+                    isLoading: isLoading
+                )
+            } else {
+                // New location - create fresh LocationWeather object
+                return LocationWeather(id: location.id, location: location)
+            }
         }
     }
     
@@ -317,7 +334,14 @@ class WeatherViewModel: ObservableObject {
     
     /// Selects a location for home screen display
     func selectForHome(_ location: TrackedLocation) {
+        // Update the store
         weatherStore.selectForHome(location)
-        loadTrackedLocations()
+        
+        // Update the isSelectedForHome flag in locationWeathers WITHOUT losing weather data
+        locationWeathers = locationWeathers.map { locationWeather in
+            var updated = locationWeather
+            updated.location.isSelectedForHome = (locationWeather.location.id == location.id)
+            return updated
+        }
     }
 }

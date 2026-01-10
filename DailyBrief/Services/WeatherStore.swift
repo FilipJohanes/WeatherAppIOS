@@ -31,6 +31,9 @@ class WeatherStore: ObservableObject {
     /// List of tracked locations (always includes current location first)
     @Published var trackedLocations: [TrackedLocation] = []
     
+    /// ID of the currently selected location (for reactivity in views)
+    @Published var selectedLocationId: UUID?
+    
     // MARK: - Constants
     
     private let maxLocations = 10
@@ -74,6 +77,9 @@ class WeatherStore: ObservableObject {
             trackedLocations.insert(currentLoc, at: 0)
             save()
         }
+        
+        // Set initial selected location ID
+        selectedLocationId = selectedLocation?.id
     }
     
     // MARK: - Public Methods
@@ -154,6 +160,9 @@ class WeatherStore: ObservableObject {
         trackedLocations = trackedLocations.map { loc in
             var updatedLoc = loc
             updatedLoc.isSelectedForHome = (loc.id == location.id)
+        // Update selected location ID for reactivity
+        selectedLocationId = location.id
+        
             return updatedLoc
         }
         

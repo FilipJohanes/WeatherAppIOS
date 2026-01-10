@@ -88,10 +88,19 @@ struct TrackedLocation: Codable, Identifiable, Equatable {
 /// This is used to display weather for each tracked location
 struct LocationWeather: Identifiable {
     let id: UUID
-    let location: TrackedLocation
+    var location: TrackedLocation
     var weather: Weather?
-    var isLoading: Bool = false
+    var isLoading: Bool
     var errorMessage: String?
+    
+    /// Initialize with all properties
+    init(id: UUID, location: TrackedLocation, weather: Weather? = nil, errorMessage: String? = nil, isLoading: Bool = false) {
+        self.id = id
+        self.location = location
+        self.weather = weather
+        self.errorMessage = errorMessage
+        self.isLoading = isLoading
+    }
     
     /// Display name for UI
     var displayName: String {
