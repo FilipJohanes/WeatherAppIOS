@@ -2,8 +2,26 @@ import Foundation
 import SwiftUI
 import Combine
 
-/// Local storage for countdowns - no backend required
-/// Stores up to 20 countdowns locally using UserDefaults
+/// CountdownStore: Local storage manager for countdown events
+/// 
+/// **What it does:**
+/// - Saves countdown events to device (using UserDefaults)
+/// - Enforces 20 countdown limit
+/// - Provides CRUD operations for countdowns
+/// 
+/// **How it works:**
+/// - Data stored in UserDefaults as JSON
+/// - Changes published to UI via @Published property
+/// - No internet/backend required - all data is local
+/// 
+/// **Storage Details:**
+/// - Key: "countdowns"
+/// - Format: JSON array of Countdown objects
+/// - Persists between app launches
+/// - Maximum: 20 countdowns
+/// 
+/// **Used by:**
+/// - CountdownViewModel: For all countdown operations
 class CountdownStore: ObservableObject {
     
     // MARK: - Published Properties

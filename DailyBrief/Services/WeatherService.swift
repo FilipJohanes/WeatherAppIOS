@@ -3,9 +3,26 @@ import SwiftUI
 import Combine
 import CoreLocation
 
-/// Direct weather service using Open-Meteo API
-/// No backend required - calls API directly from app
-/// No API key needed - completely free!
+/// WeatherService: Handles all weather data fetching from Open-Meteo API
+/// 
+/// **What it does:**
+/// - Fetches current weather and 7-day forecast
+/// - Converts GPS coordinates to city names (reverse geocoding)
+/// - Caches weather data to reduce API calls
+/// 
+/// **API Details:**
+/// - Provider: Open-Meteo (https://open-meteo.com)
+/// - Cost: FREE - no API key required!
+/// - No backend server needed - direct API calls from app
+/// 
+/// **Caching:**
+/// - Weather cached for 30 minutes
+/// - Reduces unnecessary API calls
+/// - Improves app performance and responsiveness
+/// 
+/// **Used by:**
+/// - WeatherViewModel: For weather screen
+/// - DailyBriefViewModel: For home screen weather
 
 class WeatherService: ObservableObject {
     @Published var lastUpdated: Date?
@@ -22,7 +39,12 @@ class WeatherService: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Fetch current weather and forecast for coordinates
+    /// Fetch current weather and forecast for GPS coordinates
+    /// Checks cache first, then fetches from API if needed
+    /// - Parameters:
+    ///   - lat: Latitude coordinate
+    ///   - lon: Longitude coordinate
+    /// - Returns: Weather object with current conditions and 7-day forecast
     func getWeather(lat: Double, lon: Double) async throws -> Weather {
         // Check cache first
         if let cachedWeather = loadCachedWeather(), isCacheValid() {
@@ -38,7 +60,10 @@ class WeatherService: ObservableObject {
         return weather
     }
     
-    /// Fetch weather for a specific city
+    /// Fetch weather for a specific city by name
+    /// First converts city name to coordinates, then fetches weather
+    /// - Parameter city: City name (e.g., "San Francisco")
+    /// - Returns: Weather object for that city
     func getWeather(city: String) async throws -> Weather {
         let coordinates = try await geocodeCity(city)
         return try await getWeather(lat: coordinates.lat, lon: coordinates.lon)
@@ -46,6 +71,8 @@ class WeatherService: ObservableObject {
     
     // MARK: - Private API Methods
     
+    /// Makes the actual HTTP call to Open-Meteo API
+    /// Builds URL with all required parameters for current + 7-day forecast
     private func fetchWeatherFromAPI(lat: Double, lon: Double) async throws -> Weather {
         // Build URL with all required parameters
         var components = URLComponents(string: baseURL)!
@@ -78,6 +105,7 @@ class WeatherService: ObservableObject {
         return convertToWeather(response: weatherResponse, location: locationName)
     }
     
+    /// Converts city name to GPS coordinates using iOS CoreLocation
     private func geocodeCity(_ city: String) async throws -> (lat: Double, lon: Double) {
         let geocoder = CLGeocoder()
         let placemarks = try await geocoder.geocodeAddressString(city)
@@ -89,6 +117,7 @@ class WeatherService: ObservableObject {
         return (location.coordinate.latitude, location.coordinate.longitude)
     }
     
+    /// Converts GPS coordinates to city name (reverse geocoding)
     private func reverseGeocode(lat: Double, lon: Double) async throws -> String {
         let geocoder = CLGeocoder()
         let location = CLLocation(latitude: lat, longitude: lon)
@@ -103,6 +132,8 @@ class WeatherService: ObservableObject {
     
     // MARK: - Data Conversion
     
+    /// Converts Open-Meteo API response to our app's Weather model
+    /// Transforms API data structure into format used by Views
     private func convertToWeather(response: OpenMeteoResponse, location: String) -> Weather {
         let current = response.current
         let daily = response.daily
@@ -143,7 +174,15 @@ class WeatherService: ObservableObject {
     
     /// Convert Open-Meteo weather codes to our WeatherCondition enum
     /// WMO Weather interpretation codes (WW)
-    /// https://open-meteo.com/en/docs
+    /// Reference: https://open-meteo.com/en/docs
+    /// 
+    /// Code Ranges:
+    /// - 0: Clear sky
+    /// - 1-3: Mainly clear, partly cloudy, overcast
+    /// - 45-48: Fog
+    /// - 51-67: Drizzle and rain
+    /// - 71-86: Snow
+    /// - 95-99: Thunderstorm
     private func weatherCodeToCondition(_ code: Int) -> WeatherCondition {
         switch code {
         case 0:
@@ -172,7 +211,9 @@ class WeatherService: ObservableObject {
     }
     
     // MARK: - Caching
+    // Stores weather data locally to reduce API calls and improve speed
     
+    /// Saves weather data to UserDefaults with timestamp
     private func cacheWeather(_ weather: Weather) {
         if let encoded = try? JSONEncoder().encode(weather) {
             UserDefaults.standard.set(encoded, forKey: cacheKey)
@@ -180,6 +221,7 @@ class WeatherService: ObservableObject {
         }
     }
     
+    /// Loads weather data from cache if available
     private func loadCachedWeather() -> Weather? {
         guard let data = UserDefaults.standard.data(forKey: cacheKey),
               let weather = try? JSONDecoder().decode(Weather.self, from: data) else {
@@ -188,6 +230,7 @@ class WeatherService: ObservableObject {
         return weather
     }
     
+    /// Checks if cached weather is still valid (less than 30 minutes old)
     private func isCacheValid() -> Bool {
         guard let timestamp = UserDefaults.standard.object(forKey: cacheTimestamp) as? Date else {
             return false
@@ -198,6 +241,8 @@ class WeatherService: ObservableObject {
 }
 
 // MARK: - API Response Models
+// These structs match the JSON structure returned by Open-Meteo API
+// Only used internally - app uses Weather model elsewhere
 
 private struct OpenMeteoResponse: Codable {
     let current: CurrentWeather
