@@ -6,9 +6,12 @@ struct MainTabView: View {
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var countdownStore: CountdownStore
     @EnvironmentObject var weatherStore: WeatherStore
+    
+    // Track selected tab for programmatic navigation
+    @State private var selectedTab = 0
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             // 2. Pass them to the views that now require them in their init
             DailyBriefView(
                 weatherService: weatherService,
@@ -19,25 +22,30 @@ struct MainTabView: View {
             .tabItem {
                 Label("Home", systemImage: "house.fill")
             }
+            .tag(0)
             
             WeatherView(
                 weatherService: weatherService,
                 locationManager: locationManager,
-                weatherStore: weatherStore
+                weatherStore: weatherStore,
+                selectedTab: $selectedTab
             )
             .tabItem {
                 Label("Weather", systemImage: "cloud.sun.fill")
             }
+            .tag(1)
             
             CountdownView()
                 .tabItem {
                     Label("Events", systemImage: "calendar")
                 }
+                .tag(2)
             
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
+                .tag(3)
         }
     }
 }

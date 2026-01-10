@@ -22,13 +22,15 @@ struct WeatherView: View {
     
     @StateObject private var viewModel: WeatherViewModel
     @State private var showingAddCity = false
+    @Binding var selectedTab: Int  // For navigation to home
     
-    init(weatherService: WeatherService, locationManager: LocationManager, weatherStore: WeatherStore) {
+    init(weatherService: WeatherService, locationManager: LocationManager, weatherStore: WeatherStore, selectedTab: Binding<Int>) {
         _viewModel = StateObject(wrappedValue: WeatherViewModel(
             weatherService: weatherService,
             locationManager: locationManager,
             weatherStore: weatherStore
         ))
+        _selectedTab = selectedTab
     }
     
     var body: some View {
@@ -85,6 +87,8 @@ struct WeatherView: View {
                         isSelected: locationWeather.location.isSelectedForHome,
                         onSelect: {
                             viewModel.selectForHome(locationWeather.location)
+                            // Navigate to home tab
+                            selectedTab = 0
                         },
                         onDelete: locationWeather.location.isCurrentLocation ? nil : {
                             viewModel.deleteLocation(locationWeather.location)
@@ -136,31 +140,95 @@ struct WeatherView: View {
     
     private var addCitySheet: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                Text("Add a city to track its weather")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.top)
-                
-                TextField("City name (e.g., San Francisco)", text: $viewModel.newCityName)
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal)
-                    .autocapitalization(.words)
-                
-                if viewModel.isLoading {
-                    ProgressView("Adding location...")
-                        .padding()
-                }
-                
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
+            VStack(spacing: 0) {
+                VStack(spacing: 20) {
+                    Text("Add a city to track its weather")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.top)
+                    
+                    TextField("City name (e.g., San Francisco)", text: $viewModel.newCityName)
+                        .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
+                        .autocapitalization(.words)
+                        .onChange(of: viewModel.newCityName) { newValue in
+                            Task {
+                                await viewModel.searchCities(newValue)
+                            }
+                        }
+                    
+                    if viewModel.isLoading {
+                        ProgressView("Adding location...")
+                            .padding()
+                    }
+                    
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                 }
                 
-                Spacer()
+                // City suggestions list
+                if !viewModel.citySuggestions.isEmpty && !viewModel.newCityName.isEmpty {
+                    Divider()
+                        .padding(.top)
+                    
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            Text("Suggestions")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                            
+                            ForEach(viewModel.citySuggestions, id: \.self) { placemark in
+                                Button(action: {
+                                    Task {
+                                        await viewModel.addCityFromPlacemark(placemark)
+                                        if viewModel.errorMessage == nil {
+                                            showingAddCity = false
+                                        }
+                                    }
+                                }) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(placemark.locality ?? "Unknown")
+                                                .font(.body)
+                                                .foregroundColor(.primary)
+                                            
+                                            if let country = placemark.country {
+                                                Text(country)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding()
+                                    .background(Color(.systemBackground))
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Divider()
+                            }
+                        }
+                    }
+                } else if viewModel.isSearching {
+                    ProgressView("Searching...")
+                        .padding()
+                    Spacer()
+                } else {
+                    Spacer()
+                }
             }
             .navigationTitle("Add Location")
             .navigationBarTitleDisplayMode(.inline)
@@ -169,6 +237,7 @@ struct WeatherView: View {
                     Button("Cancel") {
                         showingAddCity = false
                         viewModel.newCityName = ""
+                        viewModel.citySuggestions = []
                         viewModel.errorMessage = nil
                     }
                 }
@@ -198,8 +267,9 @@ struct LocationWeatherRow: View {
     let onDelete: (() -> Void)?
     
     var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Main row - tap to select
+            Button(action: onSelect) {
                 HStack {
                     // Location name with icon
                     VStack(alignment: .leading, spacing: 4) {
@@ -265,39 +335,39 @@ struct LocationWeatherRow: View {
                     }
                 }
                 .padding()
-                
-                // Expanded weather details if selected
-                if isSelected, let weather = locationWeather.weather {
-                    Divider()
-                    
-                    HStack(spacing: 20) {
-                        WeatherDetailItem(
-                            icon: "drop.fill",
-                            label: "Humidity",
-                            value: "\(weather.humidity)%"
-                        )
-                        
-                        WeatherDetailItem(
-                            icon: "wind",
-                            label: "Wind",
-                            value: "\(Int(weather.windSpeed)) km/h"
-                        )
-                        
-                        WeatherDetailItem(
-                            icon: "thermometer",
-                            label: "Feels Like",
-                            value: "\(Int(weather.feelsLike))°"
-                        )
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                }
             }
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .shadow(radius: 2)
+            .buttonStyle(.plain)
+            
+            // Always show expanded weather details if weather is available
+            if let weather = locationWeather.weather {
+                Divider()
+                
+                HStack(spacing: 20) {
+                    WeatherDetailItem(
+                        icon: "drop.fill",
+                        label: "Humidity",
+                        value: "\(weather.humidity)%"
+                    )
+                    
+                    WeatherDetailItem(
+                        icon: "wind",
+                        label: "Wind",
+                        value: "\(Int(weather.windSpeed)) km/h"
+                    )
+                    
+                    WeatherDetailItem(
+                        icon: "thermometer",
+                        label: "Feels Like",
+                        value: "\(Int(weather.feelsLike))°"
+                    )
+                }
+                .padding()
+                .background(Color(.systemGray6))
+            }
         }
-        .buttonStyle(.plain)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(radius: 2)
     }
 }
 

@@ -36,6 +36,12 @@ class WeatherViewModel: ObservableObject {
     /// City name input for adding new locations
     @Published var newCityName: String = ""
     
+    /// Suggested cities based on search text
+    @Published var citySuggestions: [CLPlacemark] = []
+    
+    /// True when searching for city suggestions
+    @Published var isSearching = false
+    
     // MARK: - Dependencies
     
     /// Service that makes API calls to Open-Meteo
@@ -174,6 +180,45 @@ class WeatherViewModel: ObservableObject {
         }
     }
     
+    /// Searches for city suggestions based on partial name
+    func searchCities(_ query: String) async {
+        guard query.count >= 2 else {
+            citySuggestions = []
+            return
+        }
+        
+        isSearching = true
+        
+        let geocoder = CLGeocoder()
+        do {
+            let placemarks = try await geocoder.geocodeAddressString(query)
+            // Filter for cities and limit to 5 results
+            citySuggestions = placemarks
+                .filter { $0.locality != nil }
+                .prefix(5)
+                .map { $0 }
+        } catch {
+            citySuggestions = []
+        }
+        
+        isSearching = false
+    }
+    
+    /// Adds a city from placemark
+    func addCityFromPlacemark(_ placemark: CLPlacemark) async {
+        guard let cityName = placemark.locality,
+              let location = placemark.location else {
+            errorMessage = "Invalid location data"
+            return
+        }
+        
+        await addCityWithCoordinates(
+            cityName: cityName,
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude
+        )
+    }
+    
     /// Adds a new city to tracked locations
     func addCity(_ cityName: String) async {
         guard !cityName.isEmpty else {
@@ -185,23 +230,40 @@ class WeatherViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // First fetch weather to verify city exists and get coordinates
-            let weather = try await weatherService.getWeather(city: cityName)
-            
-            // Extract coordinates from the fetched location
-            // We'll need to add a geocoding helper
+            // Geocode to get proper city name and coordinates
             let geocoder = CLGeocoder()
             let placemarks = try await geocoder.geocodeAddressString(cityName)
             
-            guard let location = placemarks.first?.location else {
+            guard let placemark = placemarks.first,
+                  let location = placemark.location,
+                  let resolvedCityName = placemark.locality else {
                 throw WeatherError.cityNotFound
             }
             
-            // Add to store with the resolved city name from weather
-            try weatherStore.addCity(
-                weather.location,
+            await addCityWithCoordinates(
+                cityName: resolvedCityName,
                 latitude: location.coordinate.latitude,
                 longitude: location.coordinate.longitude
+            )
+        } catch WeatherStoreError.limitReached {
+            errorMessage = "Maximum 10 locations. Delete one to add more."
+        } catch WeatherStoreError.duplicateLocation {
+            errorMessage = "This location is already in your list."
+        } catch {
+            errorMessage = "Could not find city: \(cityName)"
+        }
+        
+        isLoading = false
+    }
+    
+    /// Helper to add city with coordinates
+    private func addCityWithCoordinates(cityName: String, latitude: Double, longitude: Double) async {
+        do {
+            // Add to store with resolved city name
+            try weatherStore.addCity(
+                cityName,
+                latitude: latitude,
+                longitude: longitude
             )
             
             // Reload locations
@@ -217,15 +279,10 @@ class WeatherViewModel: ObservableObject {
             }
             
             newCityName = ""
-        } catch WeatherStoreError.limitReached {
-            errorMessage = "Maximum 10 locations. Delete one to add more."
-        } catch WeatherStoreError.duplicateLocation {
-            errorMessage = "This location is already in your list."
+            citySuggestions = []
         } catch {
-            errorMessage = "Could not find city: \(cityName)"
+            throw error
         }
-        
-        isLoading = false
     }
     
     /// Deletes a tracked location
