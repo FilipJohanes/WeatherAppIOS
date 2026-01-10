@@ -281,7 +281,11 @@ class WeatherViewModel: ObservableObject {
             newCityName = ""
             citySuggestions = []
         } catch {
-            throw error
+            // FIX: Instead of throwing, update your UI error property
+            print("Failed to add city: \(error.localizedDescription)")
+            await MainActor.run {
+                self.errorMessage = "Could not add \(cityName). Please try again."
+            }
         }
     }
     
