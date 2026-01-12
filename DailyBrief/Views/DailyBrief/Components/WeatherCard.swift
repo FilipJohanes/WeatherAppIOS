@@ -2,11 +2,14 @@ import SwiftUI
 
 struct WeatherCard: View {
     let weather: Weather
+    var isCurrentLocation: Bool = false  // Only show location icon for current location
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "location.fill")
+                if isCurrentLocation {
+                    Image(systemName: "location.fill")
+                }
                 Text(weather.location)
                     .font(.headline)
                 Spacer()

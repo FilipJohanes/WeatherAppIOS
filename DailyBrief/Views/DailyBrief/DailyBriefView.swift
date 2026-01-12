@@ -38,7 +38,10 @@ struct DailyBriefView: View {
                         } else {
                             // Weather
                             if let weather = viewModel.weather {
-                                WeatherCard(weather: weather)
+                                WeatherCard(
+                                    weather: weather,
+                                    isCurrentLocation: weatherStore.selectedLocation?.isCurrentLocation ?? false
+                                )
                             }
                             
                             // Countdowns

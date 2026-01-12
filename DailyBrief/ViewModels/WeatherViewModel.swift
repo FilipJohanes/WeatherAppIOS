@@ -79,6 +79,11 @@ class WeatherViewModel: ObservableObject {
         
         // Load initial locations
         loadTrackedLocations()
+        
+        // Auto-fetch weather on startup
+        Task {
+            await fetchAllWeather()
+        }
     }
     
     // MARK: - Public Methods
@@ -111,6 +116,12 @@ class WeatherViewModel: ObservableObject {
     func fetchAllWeather() async {
         isLoading = true
         errorMessage = nil
+        
+        // Mark all as loading
+        for index in locationWeathers.indices {
+            locationWeathers[index].isLoading = true
+            locationWeathers[index].errorMessage = nil
+        }
         
         // Update current location coordinates first
         await updateCurrentLocation()
@@ -334,14 +345,13 @@ class WeatherViewModel: ObservableObject {
     
     /// Selects a location for home screen display
     func selectForHome(_ location: TrackedLocation) {
-        // Update the store
+        // Update the store first
         weatherStore.selectForHome(location)
         
-        // Update the isSelectedForHome flag in locationWeathers WITHOUT losing weather data
-        locationWeathers = locationWeathers.map { locationWeather in
-            var updated = locationWeather
-            updated.location.isSelectedForHome = (locationWeather.location.id == location.id)
-            return updated
-        }
+        // Reload tracked locations to get updated selection state
+        loadTrackedLocations()
+        
+        // Force UI update
+        objectWillChange.send()
     }
 }
