@@ -71,12 +71,6 @@ struct DailyBriefView: View {
                 await viewModel.fetchDailyBrief()
             }
         }
-        .onAppear {
-          
-            Task {
-                await viewModel.fetchDailyBrief()
-            }
-        }
         .onChange(of: weatherStore.selectedLocationId) { _ in
             // Refresh when selected location changes
             Task {

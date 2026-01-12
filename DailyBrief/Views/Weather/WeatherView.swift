@@ -66,10 +66,8 @@ struct WeatherView: View {
                 await viewModel.fetchAllWeather()
             }
             .task {
-                // Refresh if list is empty or on first appear
-                if viewModel.locationWeathers.isEmpty {
-                    await viewModel.fetchAllWeather()
-                }
+                // Always refresh weather data on appear
+                await viewModel.fetchAllWeather()
             }
         }
     }

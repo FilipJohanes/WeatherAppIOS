@@ -56,6 +56,11 @@ class DailyBriefViewModel: ObservableObject {
         // Observe changes from countdown store
         countdownStore.$countdowns
             .assign(to: &$countdowns)
+        
+        // Auto-fetch weather on startup
+        Task {
+            await fetchDailyBrief()
+        }
     }
     
     // MARK: - Public Methods
