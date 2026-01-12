@@ -5,13 +5,13 @@ internal import _LocationEssentials
 /// DailyBriefViewModel: Coordinates weather and countdown data for the home screen
 /// 
 /// **What it does:**
-/// - Combines weather and countdown information
+/// - Shows weather for user's selected location from shared cache
 /// - Manages the main "Daily Brief" home screen
-/// - Shows weather for user's selected location
+/// - Falls back to fetching if cache is empty
 /// 
 /// **How it works:**
-/// - Fetches weather for the location selected in WeatherStore
-/// - Falls back to current location if no selection
+/// - Uses weather data cached by WeatherViewModel in WeatherStore
+/// - Only fetches if cache is empty
 /// - Loads countdowns from local storage
 /// - Publishes combined data to DailyBriefView
 /// 
@@ -40,6 +40,8 @@ class DailyBriefViewModel: ObservableObject {
     private let locationManager: LocationManager
     private let weatherStore: WeatherStore
     
+    private var cancellables = Set<AnyCancellable>()
+    
     // MARK: - Initialization
     
     /// Initializes with required services and sets up data bindings
@@ -57,28 +59,38 @@ class DailyBriefViewModel: ObservableObject {
         countdownStore.$countdowns
             .assign(to: &$countdowns)
         
-        // Auto-fetch weather on startup
-        Task {
-            await fetchDailyBrief()
-        }
+        // Observe weather cache changes to update home screen
+        weatherStore.$weatherCache
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateWeatherFromCache()
+            }
+            .store(in: &cancellables)
+        
+        // Initial load
+        updateWeatherFromCache()
     }
     
     // MARK: - Public Methods
     
-    /// Fetches all data for the Daily Brief screen
-    /// Gets weather for user's selected location (or current if none selected)
+    /// Updates weather from shared cache or fetches if not available
     func fetchDailyBrief() async {
         isLoading = true
         errorMessage = nil
         
-        // Get the selected location from WeatherStore
+        // First try to get from cache
+        if let cachedWeather = weatherStore.selectedLocationWeather {
+            weather = cachedWeather
+            isLoading = false
+            return
+        }
+        
+        // If cache is empty, fetch directly (fallback)
         let selectedLocation = weatherStore.selectedLocation
         
-        // Fetch weather based on selected location
         if let selected = selectedLocation {
             await fetchWeatherForLocation(selected)
         } else {
-            // Fallback: try to get current location weather
             await fetchCurrentLocationWeather()
         }
         
@@ -88,9 +100,18 @@ class DailyBriefViewModel: ObservableObject {
         isLoading = false
     }
     
+    /// Updates weather from shared cache (called when cache changes)
+    private func updateWeatherFromCache() {
+        if let selected = weatherStore.selectedLocation,
+           let cachedWeather = weatherStore.getWeather(for: selected.id) {
+            weather = cachedWeather
+            errorMessage = nil
+        }
+    }
+    
     // MARK: - Private Methods
     
-    /// Fetches weather for a specific tracked location
+    /// Fetches weather for a specific tracked location (fallback when cache empty)
     private func fetchWeatherForLocation(_ location: TrackedLocation) async {
         // If it's current location, need GPS
         if location.isCurrentLocation {
@@ -105,13 +126,16 @@ class DailyBriefViewModel: ObservableObject {
         }
         
         do {
-            weather = try await weatherService.getWeather(lat: lat, lon: lon)
+            let fetchedWeather = try await weatherService.getWeather(lat: lat, lon: lon)
+            weather = fetchedWeather
+            // Store in cache
+            weatherStore.updateWeather(fetchedWeather, for: location.id)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
     
-    /// Fetches weather for current GPS location
+    /// Fetches weather for current GPS location (fallback when cache empty)
     private func fetchCurrentLocationWeather() async {
         // Request location if not available
         if locationManager.location == nil {
@@ -122,23 +146,29 @@ class DailyBriefViewModel: ObservableObject {
         // Fetch weather if location available
         if let location = locationManager.location {
             do {
-                weather = try await weatherService.getWeather(
+                let fetchedWeather = try await weatherService.getWeather(
                     lat: location.coordinate.latitude,
                     lon: location.coordinate.longitude
                 )
+                weather = fetchedWeather
                 
                 // Update weather store with current location info
                 weatherStore.updateCurrentLocation(
-                    cityName: weather?.location ?? "Unknown",
+                    cityName: fetchedWeather.location,
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude
                 )
+                
+                // Store in cache
+                if let currentLoc = weatherStore.currentLocation {
+                    weatherStore.updateWeather(fetchedWeather, for: currentLoc.id)
+                }
             } catch {
                 errorMessage = error.localizedDescription
             }
         } else {
-            // Location not available - show nil weather (will show empty state)
             weather = nil
+            errorMessage = "Location not available"
         }
     }
 }

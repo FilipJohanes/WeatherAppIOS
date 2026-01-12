@@ -34,6 +34,9 @@ class WeatherStore: ObservableObject {
     /// ID of the currently selected location (for reactivity in views)
     @Published var selectedLocationId: UUID?
     
+    /// Cached weather data for each location (keyed by location ID)
+    @Published var weatherCache: [UUID: Weather] = [:]
+    
     // MARK: - Constants
     
     private let maxLocations = 10
@@ -44,6 +47,12 @@ class WeatherStore: ObservableObject {
     /// The location selected to display on home screen
     var selectedLocation: TrackedLocation? {
         return trackedLocations.first { $0.isSelectedForHome }
+    }
+    
+    /// Weather for the selected location
+    var selectedLocationWeather: Weather? {
+        guard let selected = selectedLocation else { return nil }
+        return weatherCache[selected.id]
     }
     
     /// Current location item (always first in list)
@@ -64,6 +73,24 @@ class WeatherStore: ObservableObject {
     /// Remaining location slots
     var remainingSlots: Int {
         return maxLocations - trackedLocations.count
+    }
+    
+    // MARK: - Weather Cache Methods
+    
+    /// Update weather for a specific location
+    func updateWeather(_ weather: Weather, for locationId: UUID) {
+        weatherCache[locationId] = weather
+        objectWillChange.send()
+    }
+    
+    /// Get weather for a specific location
+    func getWeather(for locationId: UUID) -> Weather? {
+        return weatherCache[locationId]
+    }
+    
+    /// Clear all cached weather
+    func clearWeatherCache() {
+        weatherCache.removeAll()
     }
     
     // MARK: - Initialization

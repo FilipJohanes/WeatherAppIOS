@@ -129,6 +129,10 @@ class WeatherViewModel: ObservableObject {
         // Fetch weather for each location in parallel
         await withTaskGroup(of: (UUID, Weather?, String?).self) { group in
             for locationWeather in locationWeathers {
+                // Skip current location - already fetched in updateCurrentLocation
+                if locationWeather.location.isCurrentLocation {
+                    continue
+                }
                 group.addTask {
                     await self.fetchWeatherForLocation(locationWeather.location)
                 }
@@ -140,6 +144,11 @@ class WeatherViewModel: ObservableObject {
                     locationWeathers[index].weather = weather
                     locationWeathers[index].errorMessage = error
                     locationWeathers[index].isLoading = false
+                    
+                    // Store in shared cache for home screen to use
+                    if let weather = weather {
+                        weatherStore.updateWeather(weather, for: id)
+                    }
                 }
             }
         }
@@ -179,7 +188,7 @@ class WeatherViewModel: ObservableObject {
         }
     }
     
-    /// Updates current location with GPS coordinates
+    /// Updates current location with GPS coordinates and fetches its weather
     private func updateCurrentLocation() async {
         // Request location if not available
         if locationManager.location == nil {
@@ -188,22 +197,54 @@ class WeatherViewModel: ObservableObject {
         }
         
         // Update current location in store with actual coordinates
-        if let gpsLocation = locationManager.location {
-            do {
-                let weather = try await weatherService.getWeather(
-                    lat: gpsLocation.coordinate.latitude,
-                    lon: gpsLocation.coordinate.longitude
-                )
+        guard let gpsLocation = locationManager.location else {
+            print("GPS location not available")
+            return
+        }
+        
+        do {
+            // Fetch weather for current GPS location
+            let weather = try await weatherService.getWeather(
+                lat: gpsLocation.coordinate.latitude,
+                lon: gpsLocation.coordinate.longitude
+            )
+            
+            // Update store with resolved city name and coordinates
+            weatherStore.updateCurrentLocation(
+                cityName: weather.location,
+                latitude: gpsLocation.coordinate.latitude,
+                longitude: gpsLocation.coordinate.longitude
+            )
+            
+            // IMPORTANT: Update the weather in locationWeathers for current location
+            if let currentIndex = locationWeathers.firstIndex(where: { $0.location.isCurrentLocation }) {
+                let locationId = locationWeathers[currentIndex].location.id
                 
-                weatherStore.updateCurrentLocation(
+                locationWeathers[currentIndex].weather = weather
+                locationWeathers[currentIndex].isLoading = false
+                locationWeathers[currentIndex].errorMessage = nil
+                
+                // Store in shared cache for home screen to use
+                weatherStore.updateWeather(weather, for: locationId)
+                
+                // Update the location data too
+                let updatedLocation = locationWeathers[currentIndex].location
+                locationWeathers[currentIndex].location = TrackedLocation(
+                    id: updatedLocation.id,
                     cityName: weather.location,
                     latitude: gpsLocation.coordinate.latitude,
-                    longitude: gpsLocation.coordinate.longitude
+                    longitude: gpsLocation.coordinate.longitude,
+                    isCurrentLocation: true,
+                    isSelectedForHome: updatedLocation.isSelectedForHome,
+                    dateAdded: updatedLocation.dateAdded
                 )
-                
-                loadTrackedLocations()
-            } catch {
-                // Silently fail - current location will show as unavailable
+            }
+        } catch {
+            print("Failed to fetch current location weather: \(error)")
+            // Mark current location as error
+            if let currentIndex = locationWeathers.firstIndex(where: { $0.location.isCurrentLocation }) {
+                locationWeathers[currentIndex].errorMessage = error.localizedDescription
+                locationWeathers[currentIndex].isLoading = false
             }
         }
     }

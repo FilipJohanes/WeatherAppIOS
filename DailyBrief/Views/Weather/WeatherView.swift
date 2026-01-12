@@ -75,36 +75,41 @@ struct WeatherView: View {
     // MARK: - Location List
     
     private var locationListView: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                if let error = viewModel.errorMessage {
-                    ErrorBanner(message: error)
-                }
-                
-                ForEach(viewModel.locationWeathers) { locationWeather in
-                    LocationWeatherRow(
-                        locationWeather: locationWeather,
-                        isSelected: locationWeather.location.isSelectedForHome,
-                        onSelect: {
-                            viewModel.selectForHome(locationWeather.location)
-                            // Navigate to home tab
-                            selectedTab = 0
-                        }
-                    )
-                }
-                .onDelete { indexSet in
-                    viewModel.deleteLocations(at: indexSet)
-                }
-                
-                if !viewModel.canAddMore {
-                    Text("Maximum 10 locations reached")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding()
-                }
+        List {
+            if let error = viewModel.errorMessage {
+                ErrorBanner(message: error)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
             }
-            .padding()
+            
+            ForEach(viewModel.locationWeathers) { locationWeather in
+                LocationWeatherRow(
+                    locationWeather: locationWeather,
+                    isSelected: locationWeather.location.isSelectedForHome,
+                    onSelect: {
+                        viewModel.selectForHome(locationWeather.location)
+                        // Navigate to home tab
+                        selectedTab = 0
+                    },
+                    onDelete: locationWeather.location.isCurrentLocation ? nil : {
+                        viewModel.deleteLocation(locationWeather.location)
+                    }
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            }
+            
+            if !viewModel.canAddMore {
+                Text("Maximum 10 locations reached")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+            }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
     
     // MARK: - Empty State
@@ -264,6 +269,7 @@ struct LocationWeatherRow: View {
     let locationWeather: LocationWeather
     let isSelected: Bool
     let onSelect: () -> Void
+    var onDelete: (() -> Void)? = nil  // Optional delete action
     
     var body: some View {
         Button(action: onSelect) {
@@ -289,7 +295,7 @@ struct LocationWeatherRow: View {
                 
                 Spacer()
                 
-                // Weather info
+                // Weather info - each row shows its own weather data
                 if let weather = locationWeather.weather {
                     HStack(spacing: 12) {
                         Text(weather.condition.weatherEmoji)
@@ -302,7 +308,7 @@ struct LocationWeatherRow: View {
                 } else if locationWeather.isLoading {
                     ProgressView()
                         .scaleEffect(0.8)
-                } else if locationWeather.location.isCurrentLocation {
+                } else {
                     Text("--")
                         .font(.title2)
                         .foregroundColor(.secondary)
@@ -314,6 +320,13 @@ struct LocationWeatherRow: View {
             .shadow(radius: 2)
         }
         .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if let deleteAction = onDelete {
+                Button(role: .destructive, action: deleteAction) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
     }
 }
 
