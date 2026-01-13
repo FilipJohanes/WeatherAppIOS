@@ -63,7 +63,13 @@ class DailyBriefViewModel: ObservableObject {
         weatherStore.$weatherCache
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.updateWeatherFromCache()
+                // Only update if we have valid cached weather for selected location
+                guard let self = self,
+                      let selected = self.weatherStore.selectedLocation,
+                      self.weatherStore.getWeather(for: selected.id) != nil else {
+                    return
+                }
+                self.updateWeatherFromCache()
             }
             .store(in: &cancellables)
         

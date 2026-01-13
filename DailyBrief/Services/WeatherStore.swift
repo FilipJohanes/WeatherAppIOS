@@ -155,6 +155,9 @@ class WeatherStore: ObservableObject {
         
         trackedLocations.removeAll { $0.id == location.id }
         
+        // Remove cached weather for this location
+        weatherCache.removeValue(forKey: location.id)
+        
         // If deleted location was selected for home, select current location
         if location.isSelectedForHome, let currentLoc = currentLocation {
             selectForHome(currentLoc)
@@ -170,6 +173,11 @@ class WeatherStore: ObservableObject {
         
         let locationsToDelete = validOffsets.map { trackedLocations[$0] }
         let wasSelectedDeleted = locationsToDelete.contains { $0.isSelectedForHome }
+        
+        // Remove cached weather for deleted locations
+        locationsToDelete.forEach { location in
+            weatherCache.removeValue(forKey: location.id)
+        }
         
         trackedLocations.remove(atOffsets: validOffsets)
         
@@ -187,11 +195,11 @@ class WeatherStore: ObservableObject {
         trackedLocations = trackedLocations.map { loc in
             var updatedLoc = loc
             updatedLoc.isSelectedForHome = (loc.id == location.id)
-        // Update selected location ID for reactivity
-        selectedLocationId = location.id
-        
             return updatedLoc
         }
+        
+        // Update selected location ID for reactivity
+        selectedLocationId = location.id
         
         save()
         

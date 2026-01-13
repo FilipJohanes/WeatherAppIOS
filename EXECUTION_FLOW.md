@@ -468,3 +468,619 @@ WeatherCard displays new weather with conditional icon
 3. **DailyBriefViewModel.weather** (`@Published`)
    - Current weather for home screen
    - Updates when selection changes
+
+---
+
+## 📍 1. REQUESTING CURRENT LOCATION VIA APPLE LOCATION SERVICE
+
+### Overview
+The app uses Apple's CoreLocation framework to request and manage the user's current GPS location.
+
+### LocationManager Initialization
+**File:** `DailyBrief/Services/LocationManager.swift` (Lines 47-61)
+```swift
+override init() {
+    super.init()
+    locationManager.delegate = self
+    locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
+    
+    // Get current authorization status
+    authorizationStatus = locationManager.authorizationStatus
+    
+    // If authorized, start getting location immediately
+    if isAuthorized {
+        locationManager.requestLocation()
+    } else if authorizationStatus == .notDetermined {
+        // Request permission if never asked before
+        requestPermission()
+    }
+}
+```
+
+### Permission Request Flow
+**File:** `DailyBrief/Services/LocationManager.swift` (Lines 67-69)
+```swift
+func requestPermission() {
+    locationManager.requestWhenInUseAuthorization()  // ← Triggers iOS permission dialog
+}
+```
+
+### Location Update Callback
+**File:** `DailyBrief/Services/LocationManager.swift` (Lines 97-101)
+```swift
+func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    guard let location = locations.last else { return }
+    self.location = location       // ← Published property updates
+    self.errorMessage = nil
+}
+```
+
+### Authorization Change Handling
+**File:** `DailyBrief/Services/LocationManager.swift` (Lines 109-122)
+```swift
+func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    authorizationStatus = manager.authorizationStatus
+    
+    // If user just granted permission, get location immediately
+    if isAuthorized {
+        locationManager.requestLocation()
+    } else {
+        // Clear location if permission is denied
+        location = nil
+        if authorizationStatus == .denied || authorizationStatus == .restricted {
+            errorMessage = "Location access denied. Please enable in Settings."
+        }
+    }
+}
+```
+
+### Location Request Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     APP LAUNCH                                   │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│            LocationManager.init()                                │
+│  - Sets delegate to self                                         │
+│  - Sets accuracy to kCLLocationAccuracyKilometer                 │
+│  - Checks current authorization status                           │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+              ┌───────────┴───────────┐
+              ↓                       ↓
+┌─────────────────────────┐ ┌─────────────────────────┐
+│  isAuthorized = true    │ │ status = .notDetermined │
+│  requestLocation()      │ │ requestPermission()     │
+└───────────┬─────────────┘ └───────────┬─────────────┘
+            ↓                           ↓
+┌─────────────────────────┐ ┌─────────────────────────┐
+│  CLLocationManager      │ │  iOS Permission Dialog  │
+│  fetches GPS coords     │ │  "Allow While Using"    │
+└───────────┬─────────────┘ └───────────┬─────────────┘
+            ↓                           ↓
+┌─────────────────────────┐ ┌─────────────────────────┐
+│ didUpdateLocations()    │ │ didChangeAuthorization()│
+│ self.location = coords  │ │ if granted → request()  │
+└─────────────────────────┘ └─────────────────────────┘
+```
+
+---
+
+## 💾 2. WHERE SAVED LOCATIONS ARE STORED WITH WEATHER DATA
+
+### Storage Overview
+Locations and weather data are stored in two places:
+
+| Data Type | Storage Location | Key/Property |
+|-----------|-----------------|--------------|
+| Tracked Locations | UserDefaults | `"trackedLocations"` |
+| Weather Cache | In-Memory (WeatherStore) | `weatherCache: [UUID: Weather]` |
+
+### TrackedLocation Model
+**File:** `DailyBrief/Models/TrackedLocation.swift` (Lines 17-25)
+```swift
+struct TrackedLocation: Codable, Identifiable, Equatable {
+    let id: UUID
+    let cityName: String           // Display name (e.g., "San Francisco")
+    let latitude: Double?          // GPS latitude
+    let longitude: Double?         // GPS longitude
+    let isCurrentLocation: Bool    // True if this tracks device GPS
+    var isSelectedForHome: Bool    // True if shown on home screen
+    let dateAdded: Date            // When location was added
+}
+```
+
+### WeatherStore - Persistent Storage (UserDefaults)
+**File:** `DailyBrief/Services/WeatherStore.swift` (Lines 231-240)
+```swift
+private func save() {
+    do {
+        let encoded = try JSONEncoder().encode(trackedLocations)
+        UserDefaults.standard.set(encoded, forKey: storageKey)  // Key: "trackedLocations"
+    } catch {
+        print("Failed to save tracked locations: \(error)")
+    }
+}
+
+private func load() {
+    guard let data = UserDefaults.standard.data(forKey: storageKey),
+          let decoded = try? JSONDecoder().decode([TrackedLocation].self, from: data) else {
+        trackedLocations = []
+        return
+    }
+    trackedLocations = decoded
+}
+```
+
+### WeatherStore - In-Memory Weather Cache
+**File:** `DailyBrief/Services/WeatherStore.swift` (Lines 36-37)
+```swift
+/// Cached weather data for each location (keyed by location ID)
+@Published var weatherCache: [UUID: Weather] = [:]
+```
+
+### Cache Operations
+**File:** `DailyBrief/Services/WeatherStore.swift` (Lines 76-87)
+```swift
+/// Update weather for a specific location
+func updateWeather(_ weather: Weather, for locationId: UUID) {
+    weatherCache[locationId] = weather
+    objectWillChange.send()
+}
+
+/// Get weather for a specific location
+func getWeather(for locationId: UUID) -> Weather? {
+    return weatherCache[locationId]
+}
+
+/// Clear all cached weather
+func clearWeatherCache() {
+    weatherCache.removeAll()
+}
+```
+
+### Storage Architecture Diagram
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       WeatherStore                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  @Published trackedLocations: [TrackedLocation]           │   │
+│  │  ┌───────────────────────────────────────────────────┐    │   │
+│  │  │ ID: UUID-1          │ ID: UUID-2                   │   │   │
+│  │  │ cityName: "Current" │ cityName: "New York"         │   │   │
+│  │  │ isCurrentLocation: ✓│ isCurrentLocation: ✗         │   │   │
+│  │  │ isSelectedForHome: ✓│ isSelectedForHome: ✗         │   │   │
+│  │  │ lat: 37.77, lon: -122.4│ lat: 40.71, lon: -74.0    │   │   │
+│  │  └───────────────────────────────────────────────────┘    │   │
+│  └────────────────────────────┬─────────────────────────────┘   │
+│                               │ save() / load()                  │
+│                               ↓                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              UserDefaults (Persistent)                    │   │
+│  │              Key: "trackedLocations"                      │   │
+│  │              Format: JSON encoded [TrackedLocation]       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  @Published weatherCache: [UUID: Weather]                 │   │
+│  │  ┌───────────────────────────────────────────────────┐    │   │
+│  │  │ UUID-1 → Weather(temp: 72°, condition: .clear)     │   │   │
+│  │  │ UUID-2 → Weather(temp: 45°, condition: .clouds)    │   │   │
+│  │  └───────────────────────────────────────────────────┘    │   │
+│  │  (In-Memory Only - Not Persisted to Disk)                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🌐 3. REQUESTING OPEN-METEO API FOR ALL LOCATIONS
+
+### API Configuration
+**File:** `DailyBrief/Services/WeatherService.swift` (Lines 30-31)
+```swift
+// Open-Meteo API - Free, no API key required!
+private let baseURL = "https://api.open-meteo.com/v1/forecast"
+```
+
+### Parallel Fetch for All Locations
+**File:** `DailyBrief/ViewModels/WeatherViewModel.swift` (Lines 106-135)
+```swift
+func fetchAllWeather() async {
+    isLoading = true
+    errorMessage = nil
+    
+    // Mark all as loading
+    for index in locationWeathers.indices {
+        locationWeathers[index].isLoading = true
+        locationWeathers[index].errorMessage = nil
+    }
+    
+    // Update current location coordinates first
+    await updateCurrentLocation()
+    
+    // Fetch weather for each location in parallel
+    await withTaskGroup(of: (UUID, Weather?, String?).self) { group in
+        for locationWeather in locationWeathers {
+            // Skip current location - already fetched in updateCurrentLocation
+            if locationWeather.location.isCurrentLocation {
+                continue
+            }
+            group.addTask {
+                await self.fetchWeatherForLocation(locationWeather.location)
+            }
+        }
+        
+        // Collect results
+        for await (id, weather, error) in group {
+            if let index = locationWeathers.firstIndex(where: { $0.id == id }) {
+                locationWeathers[index].weather = weather
+                locationWeathers[index].errorMessage = error
+                locationWeathers[index].isLoading = false
+                
+                // Store in shared cache for home screen to use
+                if let weather = weather {
+                    weatherStore.updateWeather(weather, for: id)
+                }
+            }
+        }
+    }
+    
+    isLoading = false
+}
+```
+
+### API Request Construction
+**File:** `DailyBrief/Services/WeatherService.swift` (Lines 73-92)
+```swift
+private func fetchWeatherFromAPI(lat: Double, lon: Double) async throws -> Weather {
+    // Build URL with all required parameters
+    var components = URLComponents(string: baseURL)!
+    components.queryItems = [
+        URLQueryItem(name: "latitude", value: "\(lat)"),
+        URLQueryItem(name: "longitude", value: "\(lon)"),
+        URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"),
+        URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"),
+        URLQueryItem(name: "timezone", value: "auto"),
+        URLQueryItem(name: "forecast_days", value: "7")
+    ]
+    
+    guard let url = components.url else {
+        throw WeatherError.invalidURL
+    }
+    
+    let (data, response) = try await URLSession.shared.data(from: url)
+    
+    // ... response handling
+}
+```
+
+### API Request Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  fetchAllWeather() Called                        │
+│                  (on app launch or refresh)                      │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  Step 1: Update Current Location                                 │
+│  - Gets GPS coordinates from LocationManager                     │
+│  - Fetches weather for current location first                    │
+│  - Updates weatherStore.weatherCache[currentLocationId]          │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  Step 2: Parallel Fetch for Saved Locations                      │
+│                                                                  │
+│  withTaskGroup:                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │ Location 1  │  │ Location 2  │  │ Location 3  │   ...        │
+│  │ (New York)  │  │ (London)    │  │ (Tokyo)     │              │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘              │
+│         │                │                │                      │
+│         ↓                ↓                ↓                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              Open-Meteo API (api.open-meteo.com)         │    │
+│  │                                                          │    │
+│  │  GET /v1/forecast?latitude=X&longitude=Y                 │    │
+│  │      &current=temperature_2m,weather_code,...            │    │
+│  │      &daily=temperature_2m_max,temperature_2m_min,...    │    │
+│  │      &timezone=auto&forecast_days=7                      │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│         │                │                │                      │
+│         ↓                ↓                ↓                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │ Weather     │  │ Weather     │  │ Weather     │              │
+│  │ Response 1  │  │ Response 2  │  │ Response 3  │              │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘              │
+│         └────────────────┼────────────────┘                      │
+│                          ↓                                       │
+└─────────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  Step 3: Update Cache & UI                                       │
+│  - weatherStore.updateWeather(weather, for: locationId)          │
+│  - locationWeathers[index].weather = weather                     │
+│  - UI automatically updates via @Published                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 4. LOGIC FOR CHANGING METEO WIDGET ON HOME SCREEN
+
+### Selection Trigger (Weather Tab)
+**File:** `DailyBrief/Views/Weather/WeatherView.swift` (Lines 86-94)
+```swift
+ForEach(viewModel.locationWeathers) { locationWeather in
+    LocationWeatherRow(
+        locationWeather: locationWeather,
+        isSelected: locationWeather.location.isSelectedForHome,
+        onSelect: {
+            viewModel.selectForHome(locationWeather.location)  // ← User taps location
+            selectedTab = 0  // ← Switches to Home tab
+        }
+    )
+}
+```
+
+### ViewModel Selection Handler
+**File:** `DailyBrief/ViewModels/WeatherViewModel.swift` (Lines 351-360)
+```swift
+func selectForHome(_ location: TrackedLocation) {
+    // Update the store first
+    weatherStore.selectForHome(location)  // ← Updates storage
+    
+    // Reload tracked locations to get updated selection state
+    loadTrackedLocations()  // ← Refreshes locationWeathers array
+    
+    // Force UI update
+    objectWillChange.send()
+}
+```
+
+### WeatherStore Selection Update
+**File:** `DailyBrief/Services/WeatherStore.swift` (Lines 157-175)
+```swift
+func selectForHome(_ location: TrackedLocation) {
+    // Deselect all others and select the specified one
+    trackedLocations = trackedLocations.map { loc in
+        var updatedLoc = loc
+        updatedLoc.isSelectedForHome = (loc.id == location.id)
+        return updatedLoc
+    }
+    
+    // Update selected location ID for reactivity
+    selectedLocationId = location.id  // ← TRIGGERS OBSERVERS
+    
+    save()  // ← Persists to UserDefaults
+    
+    // Force publish update
+    objectWillChange.send()
+}
+```
+
+### Widget Selection Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  USER TAPS LOCATION ROW IN WEATHER TAB                          │
+│  (e.g., "New York" row in WeatherView)                          │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  viewModel.selectForHome(location)                               │
+│  File: WeatherViewModel.swift                                    │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  weatherStore.selectForHome(location)                            │
+│  File: WeatherStore.swift                                        │
+│                                                                  │
+│  1. Iterate all trackedLocations                                 │
+│  2. Set isSelectedForHome = FALSE for all                        │
+│  3. Set isSelectedForHome = TRUE for tapped location             │
+│  4. Update selectedLocationId = location.id                      │
+│  5. save() → UserDefaults                                        │
+│  6. objectWillChange.send() → Notifies observers                 │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  AUTOMATIC TAB SWITCH                                            │
+│  selectedTab = 0  (Home tab)                                     │
+│  File: WeatherView.swift                                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Selection State Stored
+```
+Before Selection:                    After Selection:
+┌────────────────────────────┐      ┌────────────────────────────┐
+│ Current Location  [✓]      │      │ Current Location  [ ]      │
+│ New York          [ ]      │  →   │ New York          [✓]      │
+│ London            [ ]      │      │ London            [ ]      │
+└────────────────────────────┘      └────────────────────────────┘
+
+selectedLocationId: UUID-1    →     selectedLocationId: UUID-2
+```
+
+---
+
+## 🏠 5. HOME SCREEN METEO WIDGET UPDATE WHEN SCREEN SWITCHED
+
+### Tab View Structure
+**File:** `DailyBrief/Views/Main/MainTabView.swift` (Lines 13-49)
+```swift
+TabView(selection: $selectedTab) {
+    DailyBriefView(...)
+        .tabItem { Label("Home", systemImage: "house.fill") }
+        .tag(0)
+    
+    WeatherView(...)
+        .tabItem { Label("Weather", systemImage: "cloud.sun.fill") }
+        .tag(1)
+    // ... other tabs
+}
+```
+
+### Home Screen Observes Selection Changes
+**File:** `DailyBrief/Views/DailyBrief/DailyBriefView.swift` (Lines 71-77)
+```swift
+.onChange(of: weatherStore.selectedLocationId) { _ in
+    // Refresh when selected location changes
+    Task {
+        await viewModel.fetchDailyBrief()  // ← Triggered when selection changes
+    }
+}
+```
+
+### Weather Cache Observation
+**File:** `DailyBrief/ViewModels/DailyBriefViewModel.swift` (Lines 56-62)
+```swift
+// Observe weather cache changes to update home screen
+weatherStore.$weatherCache
+    .receive(on: DispatchQueue.main)
+    .sink { [weak self] _ in
+        self?.updateWeatherFromCache()  // ← Auto-updates when cache changes
+    }
+    .store(in: &cancellables)
+```
+
+### Cache-First Loading Strategy
+**File:** `DailyBrief/ViewModels/DailyBriefViewModel.swift` (Lines 69-93)
+```swift
+func fetchDailyBrief() async {
+    isLoading = true
+    errorMessage = nil
+    
+    // First try to get from cache (instant update!)
+    if let cachedWeather = weatherStore.selectedLocationWeather {
+        weather = cachedWeather
+        isLoading = false
+        return
+    }
+    
+    // If cache is empty, fetch directly (fallback)
+    let selectedLocation = weatherStore.selectedLocation
+    
+    if let selected = selectedLocation {
+        await fetchWeatherForLocation(selected)
+    } else {
+        await fetchCurrentLocationWeather()
+    }
+    
+    countdowns = countdownStore.countdowns
+    isLoading = false
+}
+```
+
+### Update From Cache Method
+**File:** `DailyBrief/ViewModels/DailyBriefViewModel.swift` (Lines 95-101)
+```swift
+private func updateWeatherFromCache() {
+    if let selected = weatherStore.selectedLocation,
+       let cachedWeather = weatherStore.getWeather(for: selected.id) {
+        weather = cachedWeather      // ← Updates the @Published weather property
+        errorMessage = nil
+    }
+}
+```
+
+### Home Screen Update Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  TRIGGER: User switches to Home Tab              │
+│                  (or selection changes in Weather Tab)           │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  .onChange(of: weatherStore.selectedLocationId)                  │
+│  File: DailyBriefView.swift                                      │
+│                                                                  │
+│  Detects: selectedLocationId property changed                    │
+│  Action: Calls viewModel.fetchDailyBrief()                       │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  fetchDailyBrief() Execution                                     │
+│  File: DailyBriefViewModel.swift                                 │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Check: Is weather in cache?                             │    │
+│  │  weatherStore.selectedLocationWeather                    │    │
+│  └─────────────────────┬─────────────────┬─────────────────┘    │
+│                        │ YES             │ NO                    │
+│                        ↓                 ↓                       │
+│  ┌─────────────────────────┐  ┌─────────────────────────────┐   │
+│  │  Use cached weather      │  │  Fetch from API              │   │
+│  │  weather = cachedWeather │  │  await fetchWeatherForLoc() │   │
+│  │  (Instant - no network)  │  │  (Network request)          │   │
+│  └─────────────────────────┘  └─────────────────────────────┘   │
+│                        │                 │                       │
+│                        └────────┬────────┘                       │
+│                                 ↓                                │
+└─────────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  @Published weather Property Updates                             │
+│  - SwiftUI observes the change                                   │
+│  - WeatherCard re-renders with new data                          │
+└─────────────────────────┬───────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  WeatherCard Displays Updated Weather                            │
+│  File: DailyBriefView.swift                                      │
+│                                                                  │
+│  if let weather = viewModel.weather {                            │
+│      WeatherCard(                                                │
+│          weather: weather,                                       │
+│          isCurrentLocation: weatherStore.selectedLocation?       │
+│                            .isCurrentLocation ?? false           │
+│      )                                                           │
+│  }                                                               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Complete Tab Switch Sequence
+```
+Step 1: User selects "New York" in Weather Tab
+        ↓
+Step 2: weatherStore.selectForHome(newYorkLocation)
+        - selectedLocationId = newYork.id
+        ↓
+Step 3: selectedTab = 0 (programmatic switch to Home)
+        ↓
+Step 4: DailyBriefView appears
+        ↓
+Step 5: .onChange(of: weatherStore.selectedLocationId) fires
+        ↓
+Step 6: viewModel.fetchDailyBrief() called
+        ↓
+Step 7: Check weatherStore.selectedLocationWeather
+        - If cached: Use immediately (no API call)
+        - If not cached: Fetch from Open-Meteo API
+        ↓
+Step 8: viewModel.weather = newYorkWeather
+        ↓
+Step 9: WeatherCard re-renders with New York weather
+        ↓
+Step 10: Location icon shows/hides based on isCurrentLocation
+```
+
+### Reactive Binding Chain
+```
+weatherStore.selectedLocationId (changes)
+        ↓ @Published
+DailyBriefView.onChange (triggered)
+        ↓ Task
+DailyBriefViewModel.fetchDailyBrief() (called)
+        ↓ async
+weatherStore.weatherCache (read or API fetch)
+        ↓ 
+DailyBriefViewModel.weather (updated)
+        ↓ @Published
+WeatherCard (re-rendered)
+```
