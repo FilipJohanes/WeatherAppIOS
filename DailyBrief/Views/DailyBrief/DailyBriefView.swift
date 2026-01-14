@@ -7,8 +7,8 @@ struct DailyBriefView: View {
     @EnvironmentObject var weatherStore: WeatherStore
     
     @StateObject private var viewModel: DailyBriefViewModel
+    @State private var didAppearOnce = false
 
-    // Add this init to accept the services
     init(weatherService: WeatherService, countdownStore: CountdownStore, locationManager: LocationManager, weatherStore: WeatherStore) {
         _viewModel = StateObject(wrappedValue: DailyBriefViewModel(
             weatherService: weatherService,
@@ -21,12 +21,22 @@ struct DailyBriefView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                // Blue background
                 Color(red: 0.68, green: 0.85, blue: 0.90)
                     .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
+
+                        // DEBUG location status banner (main screen)
+                        #if DEBUG
+                        Text(locationManager.status.message)
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.thinMaterial)
+                            .cornerRadius(10)
+                        #endif
+
                         if viewModel.isLoading {
                             ProgressView("Loading...")
                         } else if let error = viewModel.errorMessage {
@@ -36,7 +46,6 @@ struct DailyBriefView: View {
                                 }
                             }
                         } else {
-                            // Weather
                             if let weather = viewModel.weather {
                                 WeatherCard(
                                     weather: weather,
@@ -44,7 +53,6 @@ struct DailyBriefView: View {
                                 )
                             }
                             
-                            // Countdowns
                             if !viewModel.countdowns.isEmpty {
                                 CountdownsCard(countdowns: viewModel.countdowns)
                             } else {
@@ -68,12 +76,27 @@ struct DailyBriefView: View {
             }
             .navigationTitle("Trident")
             .refreshable {
+                // On pull-to-refresh, also nudge location for fresh weather
+                locationManager.requestOneShotLocation()
                 await viewModel.fetchDailyBrief()
             }
         }
+        .task {
+            // Run once on first appearance
+            guard !didAppearOnce else { return }
+            didAppearOnce = true
+
+            // Ensure location flow kicks off early for "Current Location" weather
+            locationManager.requestOneShotLocation()
+
+            await viewModel.fetchDailyBrief()
+        }
         .onChange(of: weatherStore.selectedLocationId) { _ in
-            // Refresh when selected location changes
             Task {
+                // If the user picked current location, ensure location is fresh
+                if weatherStore.selectedLocation?.isCurrentLocation == true {
+                    locationManager.requestOneShotLocation()
+                }
                 await viewModel.fetchDailyBrief()
             }
         }
