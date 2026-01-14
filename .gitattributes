@@ -1,0 +1,5 @@
+# Swift files should use LF line endings
+*.swift text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.plist text eol=lf
