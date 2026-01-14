@@ -91,6 +91,3 @@ iOSInjectionProject/
 
 # macOS
 .DS_Store
-
-# Sensitive data
-APIConfig.swift
