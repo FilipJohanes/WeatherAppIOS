@@ -20,8 +20,11 @@ import SwiftUI
 struct DailyBriefApp: App {
     // Stage 1 MVP: No authentication, direct to main app
     
+    /// Weather preset store - user's weather data preferences
+    @StateObject private var presetStore = WeatherPresetStore()
+    
     /// Weather service instance - shared across all views
-    @StateObject private var weatherService = WeatherService()
+    @StateObject private var weatherService: WeatherService
     
     /// Countdown storage - shared across all views
     @StateObject private var countdownStore = CountdownStore()
@@ -32,6 +35,15 @@ struct DailyBriefApp: App {
     /// Weather store - manages tracked locations
     @StateObject private var weatherStore = WeatherStore()
     
+    init() {
+        // Initialize preset store first
+        let presetStore = WeatherPresetStore()
+        _presetStore = StateObject(wrappedValue: presetStore)
+        
+        // Initialize weather service with preset store
+        _weatherService = StateObject(wrappedValue: WeatherService(presetStore: presetStore))
+    }
+    
     var body: some Scene {
         WindowGroup {
             // Root view with all services injected
@@ -40,6 +52,7 @@ struct DailyBriefApp: App {
                 .environmentObject(countdownStore)
                 .environmentObject(locationManager)
                 .environmentObject(weatherStore)
+                .environmentObject(presetStore)
         }
     }
 }

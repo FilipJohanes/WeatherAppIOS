@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject var presetStore: WeatherPresetStore
+    @EnvironmentObject var weatherStore: WeatherStore
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -9,6 +12,40 @@ struct SettingsView: View {
                     .ignoresSafeArea()
                 
                 Form {
+                    // Weather Configuration Section
+                    Section("Weather Configuration") {
+                        NavigationLink(destination: WeatherPresetSettingsView(presetStore: presetStore)) {
+                            HStack {
+                                Label("Weather Data", systemImage: "cloud.sun")
+                                Spacer()
+                                Text(presetDescription)
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                        }
+                        
+                        HStack {
+                            Text("Enabled Parameters")
+                            Spacer()
+                            Text("\(presetStore.preset.enabledCount)")
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack {
+                            Text("Forecast Days")
+                            Spacer()
+                            Text("\(presetStore.preset.forecastDays)")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // Debug Tools Section
+                    Section("Debug Tools") {
+                        NavigationLink(destination: DataInspectorView(weatherStore: weatherStore)) {
+                            Label("Data Inspector", systemImage: "doc.text.magnifyingglass")
+                        }
+                    }
+                    
                     Section("App Information") {
                         HStack {
                             Text("Version")
@@ -65,4 +102,19 @@ struct SettingsView: View {
             .navigationTitle("Settings")
         }
     }
+    
+    private var presetDescription: String {
+        if presetStore.preset == .minimal {
+            return "Minimal"
+        } else if presetStore.preset == .standard {
+            return "Standard"
+        } else if presetStore.preset == .complete {
+            return "Complete"
+        } else {
+            return "Custom"
+        }
+    }
 }
+
+#Preview {
+    SettingsView()

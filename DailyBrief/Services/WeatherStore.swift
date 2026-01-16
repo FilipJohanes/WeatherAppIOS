@@ -39,7 +39,9 @@ class WeatherStore: ObservableObject {
     
     // MARK: - Constants
     
-    private let maxLocations = 10
+    /// Maximum number of locations (including current location)
+    /// Public for scalability checks in other components
+    let maxLocations = 10
     private let storageKey = "trackedLocations"
     
     // MARK: - Computed Properties
@@ -79,17 +81,34 @@ class WeatherStore: ObservableObject {
     
     /// Update weather for a specific location
     func updateWeather(_ weather: Weather, for locationId: UUID) {
+        // Find the location to get its name for debugging
+        if let location = trackedLocations.first(where: { $0.id == locationId }) {
+            print("📍 [WeatherStore] Updating weather cache for: \(location.displayName)")
+            print("   Coordinates: (\(location.latitude ?? 0), \(location.longitude ?? 0))")
+            print("   Weather location: \(weather.location)")
+            print("   Temperature: \(weather.currentTemp)°C")
+        }
+        
         weatherCache[locationId] = weather
         objectWillChange.send()
     }
     
     /// Get weather for a specific location
     func getWeather(for locationId: UUID) -> Weather? {
-        return weatherCache[locationId]
+        let weather = weatherCache[locationId]
+        if let location = trackedLocations.first(where: { $0.id == locationId }) {
+            if weather != nil {
+                print("✅ [WeatherStore] Retrieved cached weather for: \(location.displayName)")
+            } else {
+                print("⚠️ [WeatherStore] No cached weather for: \(location.displayName)")
+            }
+        }
+        return weather
     }
     
     /// Clear all cached weather
     func clearWeatherCache() {
+        print("🗑️ [WeatherStore] Clearing all weather cache")
         weatherCache.removeAll()
     }
     
@@ -118,13 +137,19 @@ class WeatherStore: ObservableObject {
     func add(_ location: TrackedLocation) throws {
         // Check limit
         guard canAddMore else {
+            print("❌ [WeatherStore] Cannot add location - limit reached")
             throw WeatherStoreError.limitReached
         }
         
         // Check for duplicates (special handling for current location)
         if isDuplicate(location) {
+            print("❌ [WeatherStore] Cannot add location - duplicate: \(location.cityName)")
             throw WeatherStoreError.duplicateLocation
         }
+        
+        print("✅ [WeatherStore] Adding location: \(location.cityName)")
+        print("   Coordinates: (\(location.latitude ?? 0), \(location.longitude ?? 0))")
+        print("   Is current location: \(location.isCurrentLocation)")
         
         trackedLocations.append(location)
         save()

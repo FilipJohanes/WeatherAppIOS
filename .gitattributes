@@ -1,5 +1,13 @@
-# Swift files should use LF line endings
-*.swift text eol=lf
-*.md text eol=lf
-*.json text eol=lf
-*.plist text eol=lf
+# Let Git handle line endings automatically based on platform
+# Windows will use CRLF, macOS/Linux will use LF
+*.swift text
+*.md text
+*.json text
+*.plist text
+*.xcodeproj text
+*.xcworkspacedata text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary

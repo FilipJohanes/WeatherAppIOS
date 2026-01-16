@@ -113,7 +113,11 @@ class WeatherViewModel: ObservableObject {
     }
     
     /// Fetches weather for all tracked locations
+    /// Uses bulk API call for efficiency when multiple locations exist
     func fetchAllWeather() async {
+        print("\n🌤️ [WeatherViewModel] === Fetching weather for all locations ===")
+        print("   Total locations: \(locationWeathers.count)")
+        
         isLoading = true
         errorMessage = nil
         
@@ -126,88 +130,190 @@ class WeatherViewModel: ObservableObject {
         // Update current location coordinates first
         await updateCurrentLocation()
         
-        // Fetch weather for each location in parallel
-        await withTaskGroup(of: (UUID, Weather?, String?).self) { group in
-            for locationWeather in locationWeathers {
-                // Skip current location - already fetched in updateCurrentLocation
-                if locationWeather.location.isCurrentLocation {
-                    continue
+        // Get non-current locations (current location already fetched)
+        let manualLocations = locationWeathers.filter { !$0.location.isCurrentLocation }
+        
+        // Use bulk API for 2+ manual locations (more efficient than individual calls)
+        // This scales automatically from 2 to maxLocations
+        if manualLocations.count >= 2 {
+            print("   📦 Using BULK API for \(manualLocations.count) locations (scalable: 2-\(weatherStore.maxLocations-1))")
+            await fetchWeatherBulk(for: manualLocations)
+        } else if manualLocations.count == 1 {
+            print("   📍 Using single API call for 1 location")
+            // Fetch weather for single manual location
+            await withTaskGroup(of: (UUID, Weather?, String?).self) { group in
+                for locationWeather in manualLocations {
+                    let location = locationWeather.location
+                    print("   📍 Queuing API call for: \(location.displayName)")
+                    print("      Coordinates: (\(location.latitude ?? 0), \(location.longitude ?? 0))")
+                    
+                    group.addTask {
+                        await self.fetchWeatherForLocation(locationWeather.location)
+                    }
                 }
-                group.addTask {
-                    await self.fetchWeatherForLocation(locationWeather.location)
+                
+                // Collect results
+                for await (id, weather, error) in group {
+                    if let index = locationWeathers.firstIndex(where: { $0.id == id }) {
+                        let locationName = locationWeathers[index].location.displayName
+                        
+                        if let weather = weather {
+                            print("   ✅ Weather fetched for: \(locationName)")
+                            print("      API returned location: \(weather.location)")
+                            print("      Temperature: \(weather.currentTemp)°C")
+                        } else if let error = error {
+                            print("   ❌ Error fetching weather for \(locationName): \(error)")
+                        }
+                        
+                        locationWeathers[index].weather = weather
+                        locationWeathers[index].errorMessage = error
+                        locationWeathers[index].isLoading = false
+                        
+                        // Store in shared cache for home screen to use
+                        if let weather = weather {
+                            weatherStore.updateWeather(weather, for: id)
+                        }
+                    }
                 }
             }
+        }
+        
+        print("🌤️ [WeatherViewModel] === Weather fetch complete ===\n")
+        isLoading = false
+    }
+    
+    /// Fetches weather for multiple locations using bulk API
+    private func fetchWeatherBulk(for locations: [LocationWeather]) async {
+        // Build array of coordinates
+        let coordinates: [(lat: Double, lon: Double)] = locations.compactMap { locationWeather in
+            guard let lat = locationWeather.location.latitude,
+                  let lon = locationWeather.location.longitude else {
+                return nil
+            }
+            return (lat, lon)
+        }
+        
+        guard !coordinates.isEmpty else { return }
+        
+        do {
+            // Make bulk API call
+            let weatherDict = try await weatherService.getWeatherBulk(locations: coordinates)
             
-            // Collect results
-            for await (id, weather, error) in group {
-                if let index = locationWeathers.firstIndex(where: { $0.id == id }) {
+            // Match results to locations
+            for locationWeather in locations {
+                guard let lat = locationWeather.location.latitude,
+                      let lon = locationWeather.location.longitude else {
+                    continue
+                }
+                
+                let key = "\(lat),\(lon)"
+                
+                if let weather = weatherDict[key],
+                   let index = locationWeathers.firstIndex(where: { $0.id == locationWeather.id }) {
+                    
+                    print("   ✅ Bulk weather for: \(locationWeather.location.displayName)")
+                    print("      Temperature: \(weather.currentTemp)°C")
+                    
                     locationWeathers[index].weather = weather
-                    locationWeathers[index].errorMessage = error
+                    locationWeathers[index].errorMessage = nil
                     locationWeathers[index].isLoading = false
                     
-                    // Store in shared cache for home screen to use
+                    // Store in cache
+                    weatherStore.updateWeather(weather, for: locationWeather.id)
+                }
+            }
+        } catch {
+            print("   ❌ Bulk API error: \(error.localizedDescription)")
+            // Fall back to individual calls if bulk fails
+            for locationWeather in locations {
+                let (id, weather, errorMsg) = await fetchWeatherForLocation(locationWeather.location)
+                if let index = locationWeathers.firstIndex(where: { $0.id == id }) {
+                    locationWeathers[index].weather = weather
+                    locationWeathers[index].errorMessage = errorMsg
+                    locationWeathers[index].isLoading = false
+                    
                     if let weather = weather {
                         weatherStore.updateWeather(weather, for: id)
                     }
                 }
             }
         }
-        
-        isLoading = false
     }
     
     /// Fetches weather for a single location
     func fetchWeatherForLocation(_ location: TrackedLocation) async -> (UUID, Weather?, String?) {
+        print("   🔄 [fetchWeatherForLocation] Starting for: \(location.displayName)")
+        
         // Handle current location (needs GPS)
         if location.isCurrentLocation {
+            print("      Type: Current Location (GPS-based)")
             guard let gpsLocation = locationManager.location else {
+                print("      ⚠️ GPS location not available yet")
                 return (location.id, nil, nil)  // Don't show error for unavailable GPS
             }
+            
+            print("      GPS: (\(gpsLocation.coordinate.latitude), \(gpsLocation.coordinate.longitude))")
             
             do {
                 let weather = try await weatherService.getWeather(
                     lat: gpsLocation.coordinate.latitude,
                     lon: gpsLocation.coordinate.longitude
                 )
+                print("      ✅ Successfully fetched weather")
                 return (location.id, weather, nil)
             } catch {
+                print("      ❌ Error: \(error.localizedDescription)")
                 return (location.id, nil, error.localizedDescription)
             }
         }
         
         // Handle manual locations
+        print("      Type: Manual Location")
         guard let lat = location.latitude, let lon = location.longitude else {
+            print("      ❌ Error: Invalid coordinates")
             return (location.id, nil, "Invalid coordinates")
         }
         
+        print("      Coordinates: (\(lat), \(lon))")
+        
         do {
             let weather = try await weatherService.getWeather(lat: lat, lon: lon)
+            print("      ✅ Successfully fetched weather")
             return (location.id, weather, nil)
         } catch {
+            print("      ❌ Error: \(error.localizedDescription)")
             return (location.id, nil, error.localizedDescription)
         }
     }
     
     /// Updates current location with GPS coordinates and fetches its weather
     private func updateCurrentLocation() async {
+        print("   📍 [updateCurrentLocation] Updating current location...")
+        
         // Request location if not available
         if locationManager.location == nil {
+            print("      Requesting GPS location...")
             locationManager.requestLocation()
             try? await Task.sleep(nanoseconds: 2_000_000_000)
         }
         
         // Update current location in store with actual coordinates
         guard let gpsLocation = locationManager.location else {
-            print("GPS location not available")
+            print("      ⚠️ GPS location not available")
             return
         }
         
+        print("      GPS coordinates: (\(gpsLocation.coordinate.latitude), \(gpsLocation.coordinate.longitude))")
+        
         do {
             // Fetch weather for current GPS location
+            print("      Fetching weather for GPS location...")
             let weather = try await weatherService.getWeather(
                 lat: gpsLocation.coordinate.latitude,
                 lon: gpsLocation.coordinate.longitude
             )
+            
+            print("      ✅ Weather fetched: \(weather.location), \(weather.currentTemp)°C")
             
             // Update store with resolved city name and coordinates
             weatherStore.updateCurrentLocation(
@@ -238,9 +344,11 @@ class WeatherViewModel: ObservableObject {
                     isSelectedForHome: updatedLocation.isSelectedForHome,
                     dateAdded: updatedLocation.dateAdded
                 )
+                
+                print("      ✅ Current location updated in view model")
             }
         } catch {
-            print("Failed to fetch current location weather: \(error)")
+            print("      ❌ Failed to fetch current location weather: \(error)")
             // Mark current location as error
             if let currentIndex = locationWeathers.firstIndex(where: { $0.location.isCurrentLocation }) {
                 locationWeathers[currentIndex].errorMessage = error.localizedDescription
@@ -333,6 +441,9 @@ class WeatherViewModel: ObservableObject {
     
     /// Helper to add city with coordinates
     private func addCityWithCoordinates(cityName: String, latitude: Double, longitude: Double) async {
+        print("\n➕ [addCityWithCoordinates] Adding city: \(cityName)")
+        print("   Coordinates: (\(latitude), \(longitude))")
+        
         do {
             // Add to store with resolved city name
             try weatherStore.addCity(
@@ -341,15 +452,24 @@ class WeatherViewModel: ObservableObject {
                 longitude: longitude
             )
             
+            print("   ✅ Location added to store")
+            
             // Reload locations
             loadTrackedLocations()
             
             // Fetch weather for the new location
             if let newLocation = weatherStore.trackedLocations.last {
+                print("   🔄 Fetching weather for new location...")
                 let (id, weather, error) = await fetchWeatherForLocation(newLocation)
                 if let index = locationWeathers.firstIndex(where: { $0.id == id }) {
                     locationWeathers[index].weather = weather
                     locationWeathers[index].errorMessage = error
+                    
+                    if let weather = weather {
+                        print("   ✅ Weather fetched: \(weather.location), \(weather.currentTemp)°C")
+                    } else if let error = error {
+                        print("   ❌ Weather fetch failed: \(error)")
+                    }
                 }
             }
             
@@ -357,7 +477,7 @@ class WeatherViewModel: ObservableObject {
             citySuggestions = []
         } catch {
             // FIX: Instead of throwing, update your UI error property
-            print("Failed to add city: \(error.localizedDescription)")
+            print("   ❌ Failed to add city: \(error.localizedDescription)")
             await MainActor.run {
                 self.errorMessage = "Could not add \(cityName). Please try again."
             }
