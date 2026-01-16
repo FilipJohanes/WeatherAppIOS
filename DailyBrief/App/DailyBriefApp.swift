@@ -21,27 +21,32 @@ struct DailyBriefApp: App {
     // Stage 1 MVP: No authentication, direct to main app
     
     /// Weather preset store - user's weather data preferences
-    @StateObject private var presetStore = WeatherPresetStore()
+    @StateObject private var presetStore: WeatherPresetStore
     
     /// Weather service instance - shared across all views
     @StateObject private var weatherService: WeatherService
     
     /// Countdown storage - shared across all views
-    @StateObject private var countdownStore = CountdownStore()
+    @StateObject private var countdownStore: CountdownStore
     
     /// Location manager - shared across all views
-    @StateObject private var locationManager = LocationManager()
+    @StateObject private var locationManager: LocationManager
     
     /// Weather store - manages tracked locations
-    @StateObject private var weatherStore = WeatherStore()
+    @StateObject private var weatherStore: WeatherStore
     
     init() {
         // Initialize preset store first
-        let presetStore = WeatherPresetStore()
-        _presetStore = StateObject(wrappedValue: presetStore)
+        let preset = WeatherPresetStore()
+        _presetStore = StateObject(wrappedValue: preset)
         
         // Initialize weather service with preset store
-        _weatherService = StateObject(wrappedValue: WeatherService(presetStore: presetStore))
+        _weatherService = StateObject(wrappedValue: WeatherService(presetStore: preset))
+        
+        // Initialize other services
+        _countdownStore = StateObject(wrappedValue: CountdownStore())
+        _locationManager = StateObject(wrappedValue: LocationManager())
+        _weatherStore = StateObject(wrappedValue: WeatherStore())
     }
     
     var body: some Scene {

@@ -176,6 +176,8 @@ class WeatherViewModel: ObservableObject {
                     }
                 }
             }
+        } else {
+            print("   ⏭️ No manual locations to fetch")
         }
         
         print("🌤️ [WeatherViewModel] === Weather fetch complete ===\n")

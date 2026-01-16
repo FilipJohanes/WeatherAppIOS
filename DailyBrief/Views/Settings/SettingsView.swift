@@ -118,3 +118,6 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(WeatherPresetStore())
+        .environmentObject(WeatherStore())
+}
