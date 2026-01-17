@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 import CoreLocation
 import Combine
 
@@ -21,7 +20,7 @@ import Combine
 class LocationManager: NSObject, ObservableObject {
     
     // MARK: - Published Properties
-    
+    @Published var status: LocationStatus = .unknown
     /// Current location of the device (nil if not available yet)
     @Published var location: CLLocation?
     
@@ -49,7 +48,7 @@ class LocationManager: NSObject, ObservableObject {
     override init() {
         super.init()
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
+            locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
         
         // Get current authorization status
         authorizationStatus = locationManager.authorizationStatus
@@ -64,7 +63,6 @@ class LocationManager: NSObject, ObservableObject {
     }
     
     // MARK: - Public Methods
-    
     /// Requests "When In Use" location permission from user
     /// This triggers the iOS permission dialog
     func requestPermission() {

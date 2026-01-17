@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import Combine
 
 /// UserData: Root data model containing all user-specific app data
 ///

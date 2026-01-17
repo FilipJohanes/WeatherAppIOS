@@ -10,13 +10,14 @@ struct DailyBriefView: View {
     @State private var didAppearOnce = false
 
     init(weatherService: WeatherService, countdownStore: CountdownStore, locationManager: LocationManager, weatherStore: WeatherStore) {
-        _viewModel = StateObject(wrappedValue: DailyBriefViewModel(
-            weatherService: weatherService,
-            countdownStore: countdownStore,
-            locationManager: locationManager,
-            weatherStore: weatherStore
-        ))
-    }
+            // Use the parameters passed into the init, not the class variables
+            _viewModel = StateObject(wrappedValue: DailyBriefViewModel(
+                weatherService: weatherService,
+                countdownStore: countdownStore,
+                locationManager: locationManager,
+                weatherStore: weatherStore
+            ))
+        }
     
     var body: some View {
         NavigationView {
@@ -29,7 +30,7 @@ struct DailyBriefView: View {
 
                         // DEBUG location status banner (main screen)
                         #if DEBUG
-                        Text(locationManager.status.message)
+                        Text("\(locationManager.status.message)")
                             .font(.caption)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -77,7 +78,7 @@ struct DailyBriefView: View {
             .navigationTitle("Trident")
             .refreshable {
                 // On pull-to-refresh, also nudge location for fresh weather
-                locationManager.requestOneShotLocation()
+                locationManager.requestLocation()
                 await viewModel.fetchDailyBrief()
             }
         }
@@ -87,7 +88,7 @@ struct DailyBriefView: View {
             didAppearOnce = true
 
             // Ensure location flow kicks off early for "Current Location" weather
-            locationManager.requestOneShotLocation()
+            locationManager.requestLocation()
 
             await viewModel.fetchDailyBrief()
         }
@@ -95,7 +96,7 @@ struct DailyBriefView: View {
             Task {
                 // If the user picked current location, ensure location is fresh
                 if weatherStore.selectedLocation?.isCurrentLocation == true {
-                    locationManager.requestOneShotLocation()
+                    locationManager.requestLocation()
                 }
                 await viewModel.fetchDailyBrief()
             }

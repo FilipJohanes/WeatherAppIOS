@@ -2,6 +2,7 @@ import Foundation
 
 /// LocationStatus: Represents the current status of location services and updates
 enum LocationStatus: Equatable {
+    case unknown
     case idle
     case servicesDisabled
 
@@ -19,6 +20,8 @@ enum LocationStatus: Equatable {
 
     var message: String {
         switch self {
+        case .unknown:
+                    return "Initializing..."
         case .idle:
             return "Location: idle"
         case .servicesDisabled:
