@@ -36,6 +36,9 @@ class WeatherService: ObservableObject {
     private let presetStore: WeatherPresetStore
     
     // MARK: - Cache
+    // Note: WeatherService cache is now DEPRECATED - use WeatherStore instead
+    // This cache is kept only for backward compatibility and single-location requests
+    // For multiple locations, use WeatherStore which has per-location caching
     private let cacheKey = "cachedWeather"
     private let cacheTimestamp = "weatherCacheTimestamp"
     private let cacheValidityMinutes = 30 // Cache for 30 minutes
@@ -116,29 +119,28 @@ class WeatherService: ObservableObject {
         
         print("   ✅ Bulk API call successful")
         
-        // Decode bulk response
-        let bulkResponse = try JSONDecoder().decode(OpenMeteoBulkResponse.self, from: data)
+        // Decode bulk response - Open-Meteo returns an ARRAY of individual responses
+        let bulkResponseArray = try JSONDecoder().decode([OpenMeteoResponse].self, from: data)
+        
+        print("   📊 Received \(bulkResponseArray.count) location responses")
         
         // Convert to Weather objects for each location
         var results: [String: Weather] = [:]
         
-        for (index, location) in locations.enumerated() {
-            let locationKey = "\(location.lat),\(location.lon)"
-            
-            // Extract data for this specific location (index-based)
-            guard index < (bulkResponse.current?.count ?? 0) else {
-                print("   ⚠️ Missing data for location \(index)")
-                continue
+        for (index, response) in bulkResponseArray.enumerated() {
+            guard index < locations.count else {
+                print("   ⚠️ More responses than requested locations")
+                break
             }
+            
+            let location = locations[index]
+            let locationKey = "\(location.lat),\(location.lon)"
             
             // Get location name from coordinates
             let locationName = try await reverseGeocode(lat: location.lat, lon: location.lon)
             
-            let weather = convertBulkToWeather(
-                bulkResponse: bulkResponse,
-                index: index,
-                location: locationName
-            )
+            // Convert using the standard single-location converter
+            let weather = convertToWeather(response: response, location: locationName)
             
             results[locationKey] = weather
             print("   ✅ Processed: \(locationName) - \(weather.currentTemp)°C")
@@ -148,23 +150,15 @@ class WeatherService: ObservableObject {
     }
     
     /// Fetch current weather and forecast for GPS coordinates
-    /// Checks cache first, then fetches from API if needed
+    /// IMPORTANT: Does NOT use cache - caching is handled by WeatherStore
+    /// This ensures each location gets its own weather data
     /// - Parameters:
     ///   - lat: Latitude coordinate
     ///   - lon: Longitude coordinate
     /// - Returns: Weather object with current conditions and 7-day forecast
     func getWeather(lat: Double, lon: Double) async throws -> Weather {
-        // Check cache first
-        if let cachedWeather = loadCachedWeather(), isCacheValid() {
-            return cachedWeather
-        }
-        
-        // Fetch fresh data
+        // Fetch fresh data - caching handled by WeatherStore instead
         let weather = try await fetchWeatherFromAPI(lat: lat, lon: lon)
-        
-        // Cache it
-        cacheWeather(weather)
-        
         return weather
     }
     
@@ -263,67 +257,22 @@ class WeatherService: ObservableObject {
     
     /// Converts GPS coordinates to city name (reverse geocoding)
     private func reverseGeocode(lat: Double, lon: Double) async throws -> String {
+        print("      🌍 [reverseGeocode] Looking up: (\(lat), \(lon))")
         let geocoder = CLGeocoder()
         let location = CLLocation(latitude: lat, longitude: lon)
         
         do {
             let placemarks = try await geocoder.reverseGeocodeLocation(location)
-            return placemarks.first?.locality ?? "Unknown Location"
+            let locality = placemarks.first?.locality ?? "Unknown Location"
+            print("      ✅ [reverseGeocode] Found: \(locality)")
+            return locality
         } catch {
+            print("      ⚠️ [reverseGeocode] Error: \(error.localizedDescription)")
             return "Unknown Location"
         }
     }
     
     // MARK: - Data Conversion
-    
-    /// Converts bulk API response to Weather for specific location index
-    private func convertBulkToWeather(bulkResponse: OpenMeteoBulkResponse, index: Int, location: String) -> Weather {
-        // Extract data for this specific location index
-        let current = bulkResponse.current?[index]
-        let daily = bulkResponse.daily
-        
-        // Create week forecast
-        var weekForecast: [DayWeather] = []
-        
-        if let daily = daily {
-            let timeCount = daily.time.count
-            let codeCount = daily.weather_code.count / bulkResponse.locationCount
-            let maxTempCount = daily.temperature_2m_max.count / bulkResponse.locationCount
-            let minTempCount = daily.temperature_2m_min.count / bulkResponse.locationCount
-            
-            for i in 0..<min(7, timeCount) {
-                let dateString = daily.time[i]
-                let date = ISO8601DateFormatter().date(from: dateString) ?? Date()
-                
-                // Calculate index offset for this location in bulk arrays
-                let offset = i * bulkResponse.locationCount + index
-                
-                let dayWeather = DayWeather(
-                    date: dateString,
-                    dayName: formatDayName(date),
-                    tempMax: offset < maxTempCount ? daily.temperature_2m_max[offset] : 0,
-                    tempMin: offset < minTempCount ? daily.temperature_2m_min[offset] : 0,
-                    precipitationSum: 0.0,
-                    precipitationProbability: (daily.precipitation_probability_max != nil && offset < (daily.precipitation_probability_max!.count)) ? daily.precipitation_probability_max![offset] : 0,
-                    windSpeedMax: 0.0,
-                    condition: (offset < codeCount ? weatherCodeToCondition(daily.weather_code[offset]) : .clear).rawValue
-                )
-                weekForecast.append(dayWeather)
-            }
-        }
-        
-        return Weather(
-            location: location,
-            currentTemp: current?.temperature_2m ?? 0,
-            feelsLike: current?.apparent_temperature ?? 0,
-            condition: weatherCodeToCondition(current?.weather_code ?? 0),
-            humidity: current?.relative_humidity_2m ?? 0,
-            windSpeed: current?.wind_speed_10m ?? 0,
-            tempMin: daily?.temperature_2m_min.first ?? 0,
-            tempMax: daily?.temperature_2m_max.first ?? 0,
-            weekForecast: weekForecast
-        )
-    }
     
     /// Converts Open-Meteo API response to our app's Weather model
     /// Transforms API data structure into format used by Views
@@ -455,47 +404,6 @@ private struct OpenMeteoResponse: Codable {
         let temperature_2m_max: [Double]
         let temperature_2m_min: [Double]
         let precipitation_probability_max: [Int]?
-    }
-}
-
-/// Bulk API response for multiple locations
-/// When requesting multiple locations, Open-Meteo returns arrays for each data point
-private struct OpenMeteoBulkResponse: Codable {
-    let latitude: [Double]
-    let longitude: [Double]
-    let current: [BulkCurrentWeather]?
-    let daily: BulkDailyWeather?
-    
-    var locationCount: Int {
-        return latitude.count
-    }
-    
-    struct BulkCurrentWeather: Codable {
-        let time: String
-        let temperature_2m: Double?
-        let relative_humidity_2m: Int?
-        let apparent_temperature: Double?
-        let weather_code: Int?
-        let wind_speed_10m: Double?
-        let wind_direction_10m: Double?
-        let wind_gusts_10m: Double?
-        let precipitation: Double?
-        let rain: Double?
-        let snowfall: Double?
-        let surface_pressure: Double?
-        let visibility: Double?
-        let cloud_cover: Int?
-    }
-    
-    struct BulkDailyWeather: Codable {
-        let time: [String]
-        let weather_code: [Int]
-        let temperature_2m_max: [Double]
-        let temperature_2m_min: [Double]
-        let precipitation_sum: [Double]?
-        let precipitation_probability_max: [Int]?
-        let wind_speed_10m_max: [Double]?
-        let uv_index_max: [Double]?
     }
 }
 
