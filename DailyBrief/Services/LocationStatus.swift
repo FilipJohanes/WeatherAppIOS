@@ -21,7 +21,7 @@ enum LocationStatus: Equatable {
     var message: String {
         switch self {
         case .unknown:
-            return "Location: initializing..."
+            return "" // Don't show during initialization
         case .idle:
             return "" // Don't show anything when idle (normal state)
         case .servicesDisabled:
@@ -30,21 +30,23 @@ enum LocationStatus: Equatable {
         case .requestingPermission:
             return "Location: requesting permission…"
         case .authorizedWhenInUse:
-            return "Location: authorized (When In Use)"
+            return "" // Don't show - authorized is normal state
         case .authorizedAlways:
-            return "Location: authorized (Always)"
+            return "" // Don't show - authorized is normal state
         case .denied:
             return "Location: denied (enable in Settings)"
         case .restricted:
             return "Location: restricted (system policy)"
 
         case .requestingLocation:
-            return "Location: requesting one-shot fix…"
+            return "Location: requesting…"
         case .updatingLocation:
-            return "Location: updating continuously…"
+            return "Location: updating…"
 
         case .locationReceived(let lat, let lon, let accuracy):
-            return String(format: "Location: %.5f, %.5f (±%.0fm)", lat, lon, accuracy)
+            return "" // Don't show coordinates - too technical for users
+            // If you want to debug, uncomment:
+            // return String(format: "Location: %.5f, %.5f (±%.0fm)", lat, lon, accuracy)
 
         case .failed(let msg):
             return "Location: error — \(msg)"

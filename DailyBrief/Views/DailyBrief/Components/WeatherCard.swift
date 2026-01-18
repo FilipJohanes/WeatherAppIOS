@@ -3,7 +3,7 @@ import SwiftUI
 struct WeatherCard: View {
     let weather: Weather
     var isCurrentLocation: Bool = false  // Only show location icon for current location
-    @StateObject private var presetStore = WeatherPresetStore()
+    @EnvironmentObject var presetStore: WeatherPresetStore
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
