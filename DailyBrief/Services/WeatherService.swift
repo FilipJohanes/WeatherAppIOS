@@ -293,9 +293,9 @@ class WeatherService: ObservableObject {
                 dayName: formatDayName(date),                     // 2. dayName
                 tempMax: daily.temperature_2m_max[i],             // 3. tempMax
                 tempMin: daily.temperature_2m_min[i],             // 4. tempMin
-                precipitationSum: 0.0,                            // 5. precipitationSum (New Order)
+                precipitationSum: daily.precipitation_sum?[i] ?? 0.0, // 5. precipitationSum
                 precipitationProbability: daily.precipitation_probability_max?[i] ?? 0, // 6. probability
-                windSpeedMax: 0.0,                                // 7. windSpeedMax
+                windSpeedMax: daily.wind_speed_10m_max?[i] ?? 0.0, // 7. windSpeedMax
                 condition: weatherCodeToCondition(daily.weather_code[i]).rawValue  // 8. condition (Last)
             )
             weekForecast.append(dayWeather)
@@ -304,10 +304,10 @@ class WeatherService: ObservableObject {
         return Weather(
             location: location,
             currentTemp: current.temperature_2m,
-            feelsLike: current.apparent_temperature,
+            feelsLike: current.apparent_temperature ?? current.temperature_2m, // Default to actual temp
             condition: weatherCodeToCondition(current.weather_code),
-            humidity: current.relative_humidity_2m,
-            windSpeed: current.wind_speed_10m,
+            humidity: current.relative_humidity_2m ?? 0,  // Default to 0 if not available
+            windSpeed: current.wind_speed_10m ?? 0.0,     // Default to 0 if not available
             tempMin: daily.temperature_2m_min.first ?? current.temperature_2m,
             tempMax: daily.temperature_2m_max.first ?? current.temperature_2m,
             weekForecast: weekForecast
@@ -385,17 +385,30 @@ class WeatherService: ObservableObject {
 // MARK: - API Response Models
 // These structs match the JSON structure returned by Open-Meteo API
 // Only used internally - app uses Weather model elsewhere
+// Fields are optional to support different weather presets
 
 private struct OpenMeteoResponse: Codable {
     let current: CurrentWeather
     let daily: DailyWeather
     
     struct CurrentWeather: Codable {
+        // Core fields - always requested
         let temperature_2m: Double
-        let relative_humidity_2m: Int
-        let apparent_temperature: Double
         let weather_code: Int
-        let wind_speed_10m: Double
+        
+        // Optional fields - depend on preset configuration
+        let relative_humidity_2m: Int?
+        let apparent_temperature: Double?
+        let wind_speed_10m: Double?
+        let wind_direction_10m: Double?
+        let wind_gusts_10m: Double?
+        let precipitation: Double?
+        let rain: Double?
+        let snowfall: Double?
+        let surface_pressure: Double?
+        let visibility: Double?
+        let cloud_cover: Int?
+        let uv_index: Double?
     }
     
     struct DailyWeather: Codable {
@@ -404,6 +417,9 @@ private struct OpenMeteoResponse: Codable {
         let temperature_2m_max: [Double]
         let temperature_2m_min: [Double]
         let precipitation_probability_max: [Int]?
+        let precipitation_sum: [Double]?
+        let wind_speed_10m_max: [Double]?
+        let uv_index_max: [Double]?
     }
 }
 

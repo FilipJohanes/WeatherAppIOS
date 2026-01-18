@@ -2,6 +2,10 @@
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
+Tests\test_geocode.swift
+Tests\test_presets.ps1
+Tests\test_presets.swift
+
 ## User settings
 xcuserdata/
 

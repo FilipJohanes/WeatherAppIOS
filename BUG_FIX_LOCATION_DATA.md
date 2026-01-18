@@ -1,7 +1,8 @@
-# Bug Fix: Location Data Corruption & Bulk API Issues
+# Bug Fix: Location Data Corruption & API Decoding Issues
 
 **Date**: January 17, 2026  
-**Status**: ✅ FIXED - Ready for Testing
+**Status**: ✅ FIXED - Ready for Testing  
+**Update**: Fixed additional decoding issue with weather presets
 
 ## Issues Fixed
 
@@ -64,7 +65,33 @@ But the actual API returns an **array of complete response objects**:
 
 ---
 
-### 3. GPS Location Resolution Issue 🔍
+### 3. Weather Preset Decoding Error ❌ → ✅ (NEW)
+**Error**: `keyNotFound(CodingKeys(stringValue: "relative_humidity_2m"...)`
+
+**Root Cause**: 
+When using minimal presets like "Temperature", the API only returns requested fields:
+- Request: `current=weather_code,temperature_2m` (only 2 fields)
+- Response: Only contains `weather_code` and `temperature_2m`
+- But `OpenMeteoResponse.CurrentWeather` struct had **all fields as required**
+- Decoder failed when trying to decode missing fields like `relative_humidity_2m`, `apparent_temperature`, `wind_speed_10m`
+
+**Fix**: 
+- Made all optional fields in `OpenMeteoResponse` actually optional (using `?`)
+- Updated `convertToWeather()` to provide sensible defaults:
+  - `feelsLike` → defaults to actual temperature if not available
+  - `humidity` → defaults to 0 if not available
+  - `windSpeed` → defaults to 0.0 if not available
+  - `precipitationSum` → uses API value or 0.0
+  - `windSpeedMax` → uses API value or 0.0
+
+**Impact**: Now works with ALL weather presets:
+- ✅ "Temperature" (minimal)
+- ✅ "Temperature, Feels Like, Humidity, Wind, Precipitation"
+- ✅ "Full Details" (all fields)
+
+---
+
+### 4. GPS Location Resolution Issue 🔍
 **Expected**: GPS coordinates (48.22218, 17.39706) should resolve to "Senec" or nearby Bratislava-area town
 
 **Was Showing**: "Prague 1" (due to cached data corruption from Issue #2)
@@ -127,10 +154,90 @@ private func reverseGeocode(lat: Double, lon: Double) async throws -> String {
 }
 ```
 
-#### 4. Removed Obsolete Code
+#### 4. Made API Response Fields Optional (Lines ~390-420)
+```swift
+// OLD - All fields required
+struct CurrentWeather: Codable {
+    let temperature_2m: Double
+    let relative_humidity_2m: Int      // ❌ Required - crashes on minimal preset
+    let apparent_temperature: Double   // ❌ Required - crashes on minimal preset
+    let weather_code: Int
+    let wind_speed_10m: Double        // ❌ Required - crashes on minimal preset
+}
+
+// NEW - Optional fields support all presets
+struct CurrentWeather: Codable {
+    // Core fields - always requested
+    let temperature_2m: Double
+    let weather_code: Int
+    
+    // Optional fields - depend on preset
+    let relative_humidity_2m: Int?     // ✅ Optional
+    let apparent_temperature: Double?  // ✅ Optional
+    let wind_speed_10m: Double?       // ✅ Optional
+    let precipitation: Double?
+    let surface_pressure: Double?
+    let visibility: Double?
+    // ... etc
+}
+```
+
+#### 5. Updated Conversion with Defaults (Lines ~280-310)
+```swift
+return Weather(
+    location: location,
+    currentTemp: current.temperature_2m,
+    feelsLike: current.apparent_temperature ?? current.temperature_2m, // ✅ Default
+    condition: weatherCodeToCondition(current.weather_code),
+    humidity: current.relative_humidity_2m ?? 0,   // ✅ Default to 0
+    windSpeed: current.wind_speed_10m ?? 0.0,      // ✅ Default to 0
+    tempMin: daily.temperature_2m_min.first ?? current.temperature_2m,
+    tempMax: daily.temperature_2m_max.first ?? current.temperature_2m,
+    weekForecast: weekForecast
+)
+```
+
+#### 6. Removed Obsolete Code
+    // ... geocoding logic ...
+    print("      ✅ [reverseGeocode] Found: \(locality)")
+    return locality
+}
+```
+
+#### 6. Removed Obsolete Code
 - Deleted `OpenMeteoBulkResponse` struct (40+ lines)
 - Deleted `convertBulkToWeather()` function (35+ lines)
 - Simplified codebase by ~75 lines
+
+---
+
+## Root Cause Summary
+
+**Why it was "moving in circles":**
+
+1. **First attempt**: Fixed bulk API format issue
+2. **Ran into new error**: Decoder couldn't find `relative_humidity_2m`
+3. **Root cause**: The "Temperature" preset only requests 2 fields, but decoder expected ALL fields
+4. **Circular behavior**: Different presets caused different decoder errors
+
+**The full chain of issues:**
+```
+User selects "Temperature" preset
+    ↓
+API call only requests: weather_code, temperature_2m
+    ↓
+API returns only those 2 fields (correct behavior)
+    ↓
+Decoder tries to decode OpenMeteoResponse.CurrentWeather
+    ↓
+Struct expects ALL fields as required (relative_humidity_2m, apparent_temperature, etc.)
+    ↓
+Decoder crashes: "keyNotFound: relative_humidity_2m"
+    ↓
+ALL locations fail to load
+```
+
+**The fix**: Made optional fields actually optional in the response struct, so the decoder works regardless of which preset is active.
 
 ---
 
