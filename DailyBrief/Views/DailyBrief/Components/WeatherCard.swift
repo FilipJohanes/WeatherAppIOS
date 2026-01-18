@@ -3,6 +3,7 @@ import SwiftUI
 struct WeatherCard: View {
     let weather: Weather
     var isCurrentLocation: Bool = false  // Only show location icon for current location
+    @StateObject private var presetStore = WeatherPresetStore()
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -22,11 +23,37 @@ struct WeatherCard: View {
                 VStack(alignment: .leading) {
                     Text("\(Int(weather.currentTemp))°")
                         .font(.system(size: 48, weight: .bold))
-                    Text("Feels like \(Int(weather.feelsLike))°")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    if presetStore.preset.includeFeelsLike {
+                        Text("Feels like \(Int(weather.feelsLike))°")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 Spacer()
+            }
+            
+            // Additional current conditions (if enabled in preset)
+            if presetStore.preset.includeHumidity || presetStore.preset.includeWindSpeed {
+                HStack(spacing: 20) {
+                    if presetStore.preset.includeHumidity {
+                        HStack(spacing: 4) {
+                            Image(systemName: "humidity.fill")
+                                .foregroundColor(.blue)
+                            Text("\(weather.humidity)%")
+                                .font(.subheadline)
+                        }
+                    }
+                    
+                    if presetStore.preset.includeWindSpeed {
+                        HStack(spacing: 4) {
+                            Image(systemName: "wind")
+                                .foregroundColor(.gray)
+                            Text("\(Int(weather.windSpeed)) km/h")
+                                .font(.subheadline)
+                        }
+                    }
+                }
+                .foregroundColor(.secondary)
             }
             
             Divider()
@@ -50,17 +77,19 @@ struct WeatherCard: View {
                         .foregroundColor(.secondary)
                 }
                 
-                VStack {
-                    Text("\(weather.today.precipitationProbability)%")
-                        .font(.title)
-                        .fontWeight(.semibold)
-                    Text("Rain")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                if presetStore.preset.includePrecipitationProb {
+                    VStack {
+                        Text("\(weather.today.precipitationProbability)%")
+                            .font(.title)
+                            .fontWeight(.semibold)
+                        Text("Rain")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             
-            if !weather.weekForecast.isEmpty {
+            if presetStore.preset.includeDailyForecast && !weather.weekForecast.isEmpty {
                 Divider()
                 
                 ScrollView(.horizontal, showsIndicators: false) {

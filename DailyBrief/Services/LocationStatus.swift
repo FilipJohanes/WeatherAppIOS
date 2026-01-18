@@ -21,9 +21,9 @@ enum LocationStatus: Equatable {
     var message: String {
         switch self {
         case .unknown:
-                    return "Initializing..."
+            return "Location: initializing..."
         case .idle:
-            return "Location: idle"
+            return "" // Don't show anything when idle (normal state)
         case .servicesDisabled:
             return "Location: Services OFF (enable in Settings)"
 
