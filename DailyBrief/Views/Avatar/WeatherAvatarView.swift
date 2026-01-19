@@ -140,20 +140,20 @@ struct WeatherAvatarView: View {
 struct WeatherAvatarView_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 30) {
-            // Sunny
-            WeatherAvatarView(weather: Weather.preview(temp: 25, code: 0))
+            // Sunny - Using .clear instead of 0
+            WeatherAvatarView(weather: Weather.preview(temp: 25, condition: .clear))
                 .frame(width: 200, height: 200)
             
             Text("Sunny Outfit")
             
-            // Rainy
-            WeatherAvatarView(weather: Weather.preview(temp: 15, code: 61))
+            // Rainy - Using .rain instead of 61
+            WeatherAvatarView(weather: Weather.preview(temp: 15, condition: .rain))
                 .frame(width: 200, height: 200)
             
             Text("Rainy Outfit")
             
-            // Snowy
-            WeatherAvatarView(weather: Weather.preview(temp: -5, code: 71))
+            // Snowy - Using .snow instead of 71
+            WeatherAvatarView(weather: Weather.preview(temp: -5, condition: .snow))
                 .frame(width: 200, height: 200)
             
             Text("Snowy Outfit")
@@ -165,22 +165,17 @@ struct WeatherAvatarView_Previews: PreviewProvider {
 // MARK: - Weather Preview Helper
 
 extension Weather {
-    static func preview(temp: Double, code: Int) -> Weather {
+    static func preview(temp: Double, condition: WeatherCondition) -> Weather {
         Weather(
-            id: UUID(),
-            locationId: UUID(),
-            locationName: "Preview",
-            latitude: 0,
-            longitude: 0,
-            current: CurrentWeather(
-                temperature: temp,
-                weatherCode: code,
-                time: Date()
-            ),
-            hourly: [],
-            daily: [],
-            timezone: "UTC",
-            lastUpdated: Date()
+            location: "Preview City",
+            currentTemp: temp,
+            feelsLike: temp,
+            condition: condition,
+            humidity: 50,
+            windSpeed: 10,
+            tempMin: temp - 5,
+            tempMax: temp + 5,
+            weekForecast: []
         )
     }
 }

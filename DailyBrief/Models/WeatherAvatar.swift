@@ -61,37 +61,28 @@ struct WeatherAvatarMapper {
     
     /// Determine which outfit to wear based on weather
     static func getOutfit(for weather: Weather) -> WeatherOutfit {
-        let temp = weather.current.temperature
-        let code = weather.current.weatherCode
+        let temp = weather.currentTemp
+        let condition = weather.condition
         
-        // Priority: Weather condition first, then temperature
-        
-        // Snow conditions (codes 71-86)
-        if code >= 71 && code <= 86 {
+        // Priority 1: Weather conditions based on youEnum
+        switch condition {
+        case .snow:
             return .snowy
-        }
-        
-        // Rain conditions (codes 51-67, 80-82)
-        if (code >= 51 && code <= 67) || (code >= 80 && code <= 82) {
+        case .rain, .drizzle, .thunderstorm:
             return .rainy
-        }
-        
-        // Windy conditions (strong wind - we'll use wind speed from weather if available)
-        // For now, use weather code context
-        
-        // Temperature-based
-        if temp >= 28 {
-            return .hot
-        } else if temp >= 20 {
-            return .sunny
-        } else if temp >= 10 {
+        case .clouds:
+            // Check temperature for cloudy days
+            if temp < 10 { return .cold }
             return .cloudy
-        } else if temp >= 0 {
-            return .cold
-        } else {
-            return .snowy
+        case .clear:
+            // Check temperature for clear days
+            if temp >= 28 { return .hot }
+            if temp >= 20 { return .sunny }
+            if temp < 10 { return .cold }
+            return .sunny
         }
     }
+    
     
     /// Get outfit with wind consideration if wind speed is available
     static func getOutfit(for weather: Weather, windSpeed: Double?) -> WeatherOutfit {
